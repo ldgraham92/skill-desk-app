@@ -1,0 +1,16 @@
+[package]
+name = "skill-desk"
+version = "0.1.0"
+description = "Your personal AI skills library"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/ldgraham92/skill-desk"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-shell = "2"
+tauri-plugin-single-instance = "2"
+serde_json = "1"

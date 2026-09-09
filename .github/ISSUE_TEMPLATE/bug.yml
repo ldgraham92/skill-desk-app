@@ -1,0 +1,30 @@
+name: Bug report
+description: Report a reproducible problem with Skill-Desk.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Skill-Desk version
+      placeholder: v0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Windows, macOS, Linux]
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: What happened?
+      description: Include steps, expected behavior and actual behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Screenshots or relevant logs
+      description: Remove tokens, private skill content and personal paths before posting.

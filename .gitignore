@@ -1,0 +1,22 @@
+.venv/
+node_modules/
+src-tauri/target/
+src-tauri/binaries/
+build/
+dist/
+__pycache__/
+*.pyc
+.DS_Store
+
+# Local credentials and generated packaging files
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.key
+*.spec
+marketing/*.zip
+release-assets/
+
+src-tauri/gen/

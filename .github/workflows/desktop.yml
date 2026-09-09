@@ -1,0 +1,80 @@
+name: Desktop installers
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    name: Build (${{ matrix.platform }})
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+            bundles: nsis
+          - os: macos-latest
+            platform: macos
+            bundles: app,dmg
+          - os: ubuntu-22.04
+            platform: linux
+            bundles: deb
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Linux native dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - run: python -m pip install -r requirements-build.txt
+      - run: npm ci
+      - run: python scripts/check_version.py
+      - run: python -m unittest discover -s tests -v
+      - run: python scripts/build_sidecar.py
+      - run: python scripts/smoke_sidecar.py
+      - run: npm run desktop:build -- --ci --bundles ${{ matrix.bundles }}
+      - name: Collect installers
+        run: python scripts/collect_release.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.platform }}
+          if-no-files-found: error
+          path: release-assets/*
+          retention-days: 14
+  publish:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installer-*
+          merge-multiple: true
+          path: release-assets
+      - name: Publish installers and checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python3 scripts/publish_release.py
