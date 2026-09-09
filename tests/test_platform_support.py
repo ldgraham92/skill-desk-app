@@ -10,11 +10,11 @@ import platform_support as support
 
 class PlatformTests(unittest.TestCase):
     def test_windows_paths_respect_local_appdata(self):
-        with tempfile.TemporaryDirectory() as tmp, patch.object(sys, 'platform', 'win32'), patch.dict(os.environ, {'LOCALAPPDATA': tmp}, clear=True):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(sys, 'platform', 'win32'), patch.dict(os.environ, {'LOCALAPPDATA': tmp}, clear=True), patch('platform_support.Path.home', side_effect=RuntimeError('No home directory')):
             self.assertEqual(support.data_dir(), Path(tmp)/'Skill-Desk')
             self.assertEqual(support.cache_dir(), Path(tmp)/'Skill-Desk/Cache')
     def test_linux_paths_respect_xdg(self):
-        with patch.object(sys, 'platform', 'linux'), patch.dict(os.environ, {'XDG_DATA_HOME':'/tmp/data','XDG_CACHE_HOME':'/tmp/cache'}, clear=True):
+        with patch.object(sys, 'platform', 'linux'), patch.dict(os.environ, {'XDG_DATA_HOME':'/tmp/data','XDG_CACHE_HOME':'/tmp/cache'}, clear=True), patch('platform_support.Path.home', side_effect=RuntimeError('No home directory')):
             self.assertEqual(support.data_dir(), Path('/tmp/data/Skill-Desk'))
             self.assertEqual(support.cache_dir(), Path('/tmp/cache/Skill-Desk'))
     def test_lock_excludes_second_process_and_releases(self):

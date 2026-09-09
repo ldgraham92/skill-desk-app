@@ -6,15 +6,15 @@ import shutil
 
 def data_dir():
     if os.environ.get('SKILL_DESK_HOME'): return Path(os.environ['SKILL_DESK_HOME'])
-    if sys.platform == 'win32': return Path(os.environ.get('LOCALAPPDATA', Path.home()/'AppData/Local'))/'Skill-Desk'
+    if sys.platform == 'win32': return Path(os.environ.get('LOCALAPPDATA') or Path.home()/'AppData/Local')/'Skill-Desk'
     if sys.platform == 'darwin': return Path.home()/'Library/Application Support/Skill-Desk'
-    return Path(os.environ.get('XDG_DATA_HOME', Path.home()/'.local/share'))/'Skill-Desk'
+    return Path(os.environ.get('XDG_DATA_HOME') or Path.home()/'.local/share')/'Skill-Desk'
 
 def cache_dir():
     if os.environ.get('SKILL_DESK_HOME'): return data_dir()/'Cache'
     if sys.platform == 'darwin': return Path.home()/'Library/Caches/Skill-Desk'
     if sys.platform == 'win32': return data_dir()/'Cache'
-    return Path(os.environ.get('XDG_CACHE_HOME', Path.home()/'.cache'))/'Skill-Desk'
+    return Path(os.environ.get('XDG_CACHE_HOME') or Path.home()/'.cache')/'Skill-Desk'
 
 def lock_file(path):
     handle = open(path, 'a+b')
@@ -34,7 +34,7 @@ def lock_file(path):
 def prepare_path():
     extra = [Path.home()/'.local/bin', Path.home()/'.cargo/bin', Path('/opt/homebrew/bin'), Path('/usr/local/bin')]
     if sys.platform == 'win32':
-        extra += [Path(os.environ.get('APPDATA', Path.home()/'AppData/Roaming'))/'npm', Path(os.environ.get('LOCALAPPDATA', Path.home()/'AppData/Local'))/'Programs/Claude', Path(os.environ.get('ProgramFiles', 'C:/Program Files'))/'Git/cmd']
+        extra += [Path(os.environ.get('APPDATA', Path.home()/'AppData/Roaming'))/'npm', Path(os.environ.get('LOCALAPPDATA') or Path.home()/'AppData/Local')/'Programs/Claude', Path(os.environ.get('ProgramFiles', 'C:/Program Files'))/'Git/cmd']
     os.environ['PATH'] = os.pathsep.join([os.environ.get('PATH','')] + [str(p) for p in extra if p.is_dir()])
 
 def command_prefix(cli):
