@@ -133,15 +133,20 @@ class Catalog:
 
     def refresh(self, generate=True, limit=None):
         with self.refresh_lock:
-            skills, errors, seen = [], [], set()
+            skills, errors, seen = [], [], {}
             for root in self.roots:
                 if root != self.root and not root.exists(): continue
                 found, failures = scan(root)
                 errors.extend(failures)
                 for skill in found:
                     canonical = str(Path(skill['folder']).resolve())
-                    if canonical in seen: continue
-                    seen.add(canonical)
+                    claude_config = os.environ.get('CLAUDE_CONFIG_DIR')
+                    harness = 'claude' if '.claude' in root.parts or bool(claude_config and root == Path(claude_config).expanduser().resolve()/'skills') else 'codex'
+                    if canonical in seen:
+                        if harness not in seen[canonical]['harnesses']: seen[canonical]['harnesses'].append(harness)
+                        continue
+                    skill['harnesses'] = [harness]
+                    seen[canonical] = skill
                     skill['library'] = str(root)
                     skill['managed'] = root == self.root
                     claude_config = os.environ.get('CLAUDE_CONFIG_DIR')
@@ -149,6 +154,8 @@ class Catalog:
                     if root != self.root:
                         skill['id'] = 'library-' + hashlib.sha256(str(root).encode()).hexdigest()[:16] + '--' + skill['id']
                     skills.append(skill)
+            availability = {}
+            for skill in skills: availability.setdefault(skill['name'], set()).update(skill['harnesses'])
             pending, rows, files = [], [], {}
             active_keys = {s['folder'] + ':' + s['digest'] for s in skills}
             with self.lock:
@@ -159,7 +166,7 @@ class Catalog:
                 key = s['folder'] + ':' + s['digest']
                 try: guidance = validate(cache[key]) if key in cache else None
                 except (ValueError, TypeError): guidance = None
-                row = dict(id=s['id'], library=s['library'], managed=s['managed'], title=s['name'], category='Understand', summary=s['summary'],
+                row = dict(id=s['id'], name=s['name'], harnesses=s['harnesses'], installedHarnesses=sorted(availability[s['name']]), library=s['library'], managed=s['managed'], title=s['name'], category='Understand', summary=s['summary'],
                            when=[], notice=['Description generation pending.'], steps=[], limits=[], related=[],
                            prompt='$' + s['name'] + ' ', output='', keywords='', source='Global skill',
                            adaptation='Read from ' + s['folder'], sourceUrl='/instructions/' + s['id'],
@@ -167,7 +174,9 @@ class Catalog:
                            invocationText='Request this skill directly.' if s['explicit'] else 'Codex may select this skill when relevant; you can also request it directly.')
                 if guidance: row.update(guidance)
                 else: pending.append((s, key))
-                if s['claude']: row['prompt'] = row['prompt'].replace('$'+s['name'], '/'+s['name'])
+                if s['claude']:
+                    row['prompt'] = row['prompt'].replace('$'+s['name'], '/'+s['name'])
+                    row['invocationText'] = row['invocationText'].replace('Codex', 'Claude')
                 rows.append(row)
                 files[s['id']] = str(Path(s['folder']) / 'SKILL.md')
             with self.lock:
@@ -224,7 +233,7 @@ async function syncCatalog(){
   const response=await fetch('/api/skills',{cache:'no-store'}); if(!response.ok) throw Error('Sync unavailable');
   const data=await response.json(); const signature=JSON.stringify(data.skills);
   if(signature!==lastCatalog){lastCatalog=signature; skills.splice(0,skills.length,...data.skills);render();
-   $('#printguide').innerHTML='<h1>Global skills</h1>'+skills.map(s=>`<article><h2>${esc(s.id)}</h2><p>${esc(s.summary)}</p><pre>${esc(s.prompt)}</pre></article>`).join('');}
+   $('#printguide').innerHTML='<h1>Global skills</h1>'+skills.filter(s=>typeof matchesHarness==='undefined'||matchesHarness(s)).map(s=>`<article><h2>${esc(s.name||s.id)}</h2><p>${esc(s.summary)}</p><pre>${esc(s.prompt)}</pre></article>`).join('');}
   const footer=document.querySelector('.sidebar footer');footer.textContent=data.status;
   if(data.errors.length){const details=document.createElement('details');const summary=document.createElement('summary');summary.textContent='Sync errors';details.append(summary);const text=document.createElement('pre');text.style.whiteSpace='pre-wrap';text.textContent=data.errors.join('\\n');details.append(text);footer.append(details);}
  }catch(e){document.querySelector('.sidebar footer').textContent='Server disconnected. Showing last loaded skills.';}
@@ -271,15 +280,19 @@ def serve(catalog, port, generate, manager=None):
             elif path == '/api/skills':
                 snapshot = catalog.snapshot()
                 with manager.lock:
-                    snapshot['skills'] = [dict(row, source=manager.registry.get(manager.key(row['id']), {}).get('kind', 'Existing') if row['managed'] else 'Existing') for row in snapshot['skills']]
+                    snapshot['skills'] = [dict(row, source=manager.registry.get(str(Path(catalog.files[row['id']]).parent), {}).get('kind', 'Existing')) for row in snapshot['skills']]
                 data, mime = json.dumps(snapshot).encode(), 'application/json'
             elif path == '/api/providers':
                 data, mime = json.dumps(dict(AUTHOR.snapshot(), root=str(catalog.root), libraries=[str(p) for p in catalog.roots])).encode(), 'application/json'
             elif path == '/api/manage':
                 listing = manager.listing()
+                by_id = {row['id']: row for row in catalog.snapshot()['skills']}
+                for item in listing['installed']:
+                    item['harnesses'] = by_id.get(item['id'], {}).get('harnesses', ['codex'])
                 for row in catalog.snapshot()['skills']:
                     if not row['managed']:
-                        listing['installed'].append(dict(id=row['id'], name=row['title'], description=row['summary'], kind='Existing', source=row['library'], readOnly=True))
+                        record = manager.registry.get(str(Path(catalog.files[row['id']]).parent), {})
+                        listing['installed'].append(dict(id=row['id'], name=row['name'], description=row['summary'], kind=record.get('kind', 'Existing'), source=record.get('source', row['library']), harnesses=row['harnesses'], readOnly=True))
                 data, mime = json.dumps(listing).encode(), 'application/json'
             elif path.startswith('/api/jobs/'):
                 with manager.lock: job = manager.jobs.get(path.removeprefix('/api/jobs/'))
@@ -330,9 +343,26 @@ def serve(catalog, port, generate, manager=None):
                     with manager.lock:
                         if manager.busy: raise ValueError('Wait for the current create/import job to finish before changing providers.')
                         result = AUTHOR.select(payload.get('provider'))
+                elif action == 'copy-preview':
+                    with manager.lock:
+                        if manager.busy or len(manager.drafts) >= 20: raise ValueError('Finish the current job or discard unused previews first.')
+                    target = payload.get('target')
+                    if target not in {'codex', 'claude'}: raise ValueError('Choose Codex or Claude.')
+                    with catalog.lock:
+                        row = next((r for r in catalog.rows if r['id'] == payload.get('id')), None)
+                        file = catalog.files.get(payload.get('id'))
+                    if not row or not file: raise ValueError('Skill no longer available. Refresh and retry.')
+                    if target in row['installedHarnesses']: raise ValueError('A skill with this name is already installed for that harness.')
+                    roots = discovery_roots()
+                    target_root = Path(os.environ.get('CLAUDE_CONFIG_DIR') or Path.home()/'.claude').expanduser().resolve()/'skills' if target == 'claude' else Path(os.environ.get('CODEX_HOME') or Path.home()/'.codex').expanduser().resolve()/'skills'
+                    result = manager.stage([Path(file).parent.resolve()], 'Harness Copy', 'Copied from '+str(Path(file).parent), target_root=target_root, conflict_roots=roots[:2] if target == 'codex' else [target_root])
+                    result['targetHarness'] = target
                 elif action in {'create', 'import'}: result = manager.job(action, payload)
                 elif action in {'install', 'discard', 'archive', 'restore'}:
                     result = getattr(manager, action)(payload)
+                    if action == 'install' and result.get('root'):
+                        destination_root = Path(result['root'])
+                        if destination_root not in catalog.roots: catalog.roots.append(destination_root)
                     catalog.refresh(generate=False)
                 else:
                     self.json_reply(404, {'error': 'Unknown action'}); return

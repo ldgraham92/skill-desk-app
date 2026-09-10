@@ -43,3 +43,33 @@ class DiscoveryTests(unittest.TestCase):
             catalog=Catalog(first,home/'cache.json',roots=[first,second])
             catalog.refresh(generate=False)
             self.assertEqual(len(catalog.rows),1)
+
+    def test_availability_tracks_separate_same_named_copies(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home=Path(tmp).resolve(); roots=[home/'.codex/skills',home/'.claude/skills']
+            for root in roots:
+                folder=root/'example';folder.mkdir(parents=True)
+                (folder/'SKILL.md').write_text('---\nname: example\ndescription: Test\n---\nInstructions.')
+            catalog=Catalog(roots[0],home/'cache.json',roots=roots);catalog.refresh(generate=False)
+            self.assertEqual(len(catalog.rows),2)
+            self.assertTrue(all(row['installedHarnesses']==['claude','codex'] for row in catalog.rows))
+            self.assertEqual(catalog.rows[0]['harnesses'],['codex'])
+            self.assertEqual(catalog.rows[1]['harnesses'],['claude'])
+
+    def test_cross_harness_preview_preserves_files_and_rechecks_conflicts(self):
+        from management import Manager
+        with tempfile.TemporaryDirectory() as tmp:
+            home=Path(tmp).resolve();root=home/'.codex/skills';source=root/'example';source.mkdir(parents=True)
+            (source/'SKILL.md').write_text('---\nname: example\ndescription: Test\n---\nRead [reference](reference.md).')
+            (source/'reference.md').write_text('Preserve this reference.')
+            target=home/'.claude/skills'
+            manager=Manager(root,lambda *_:None,state=home/'state')
+            draft=manager.stage([source],'Harness Copy','Test source',target_root=target,conflict_roots=[target])
+            self.assertFalse(draft['candidates'][0]['conflict'])
+            payload={'draft':draft['draft'],'candidate':'0'}
+            manager.install(payload)
+            self.assertEqual((target/'example/reference.md').read_text(),'Preserve this reference.')
+            self.assertTrue((source/'SKILL.md').exists())
+            with self.assertRaises(ValueError): manager.install(payload)
+            self.assertEqual(manager.registry[str(target/'example')]['kind'],'Harness Copy')
+            manager.temporary.cleanup()

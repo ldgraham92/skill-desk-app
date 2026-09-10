@@ -17,7 +17,7 @@ import yaml
 from platform_support import data_dir, subprocess_options
 STATE = data_dir()
 NAME = re.compile(r'^[a-z0-9]+(?:-[a-z0-9]+)*$')
-KINDS = ['User Created', 'Repo Installed', 'Markdown Imported', 'Existing']
+KINDS = ['User Created', 'Repo Installed', 'Markdown Imported', 'Harness Copy', 'Existing']
 
 
 def metadata(text):
@@ -146,7 +146,7 @@ class Manager:
         threading.Thread(target=run, daemon=True).start()
         return dict(job=token)
 
-    def stage(self, folders, kind, source):
+    def stage(self, folders, kind, source, target_root=None, conflict_roots=None):
         token = uuid.uuid4().hex
         base = Path(self.temporary.name) / token
         base.mkdir()
@@ -157,10 +157,10 @@ class Manager:
                 destination = base / str(i)
                 shutil.copytree(folder, destination, ignore=shutil.ignore_patterns('.git'))
                 details['candidate'] = str(i)
-                details['conflict'] = self.conflict(details['name'])
+                details['conflict'] = self.conflict(details['name'], target_root, conflict_roots)
                 candidates.append(details)
                 paths[str(i)] = destination
-            with self.lock: self.drafts[token] = dict(paths=paths, kind=kind, source=source)
+            with self.lock: self.drafts[token] = dict(paths=paths, kind=kind, source=source, target_root=target_root, conflict_roots=conflict_roots)
             return dict(draft=token, kind=kind, source=source, candidates=candidates)
         except Exception:
             shutil.rmtree(base)
@@ -244,9 +244,10 @@ class Manager:
             (p/'agents/openai.yaml').write_text(yaml.safe_dump({'policy': {'allow_implicit_invocation': not bool(data.get('explicit', False))}}), encoding='utf-8')
             return self.stage([p], 'User Created', 'Created with '+provider_label+' using available skill-authoring guidance' + (' and writing-for-agents' if (self.root/'writing-for-agents/SKILL.md').exists() else ''))
 
-    def conflict(self, name):
-        if '.claude' in self.root.parts and name.lower() == 'synced': return 'The name synced is reserved by Claude Code.'
-        for root in ([self.root] if '.claude' in self.root.parts else [self.root, Path.home()/'.codex/skills']):
+    def conflict(self, name, target_root=None, conflict_roots=None):
+        root = target_root or self.root
+        if '.claude' in root.parts and name.lower() == 'synced': return 'The name synced is reserved by Claude Code.'
+        for root in (conflict_roots or ([root] if '.claude' in root.parts else [root, Path(os.environ.get('CODEX_HOME') or Path.home()/'.codex')/'skills'])):
             if os.path.lexists(root/name): return f'{root/name} already exists. It will not be overwritten.'
             if root.exists():
                 for p in root.rglob('SKILL.md'):
@@ -261,21 +262,22 @@ class Manager:
             if not draft or data.get('candidate') not in draft['paths']: raise ValueError('Preview expired. Import or create again.')
             folder = draft['paths'][data['candidate']]
             details = validate_folder(folder)
-            conflict = self.conflict(details['name'])
+            root = draft.get('target_root') or self.root
+            conflict = self.conflict(details['name'], root, draft.get('conflict_roots'))
             if conflict: raise ValueError(conflict)
-            self.root.mkdir(parents=True, exist_ok=True)
-            destination = self.root/details['name']
+            root.mkdir(parents=True, exist_ok=True)
+            destination = root/details['name']
             destination.mkdir()  # Exclusive creation prevents replacing an existing skill.
             try:
                 shutil.copytree(folder, destination, dirs_exist_ok=True)
                 validate_folder(destination)
-                self.registry[self.key(details['name'])] = dict(kind=draft['kind'], source=draft['source'], created_at=datetime.now(timezone.utc).isoformat())
+                self.registry[str(destination)] = dict(kind=draft['kind'], source=draft['source'], created_at=datetime.now(timezone.utc).isoformat())
                 self.save()
             except Exception:
                 shutil.rmtree(destination)
-                self.registry.pop(self.key(details['name']), None)
+                self.registry.pop(str(destination), None)
                 raise
-            return dict(installed=details['name'])
+            return dict(installed=details['name'], root=str(root))
 
     def discard(self, data):
         with self.lock:
