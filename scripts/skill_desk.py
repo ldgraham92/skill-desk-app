@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import shutil
 import secrets
+from nearby import Nearby
 from management import Manager
 from skill_packages import export_package, import_package
 from providers import AuthorProvider
@@ -251,6 +252,7 @@ syncCatalog();const catalogEvents=new EventSource('/api/events');catalogEvents.o
 
 def serve(catalog, port, generate, manager=None):
     manager = manager or Manager(catalog.root, AUTHOR)
+    manager.nearby = Nearby()
     token = secrets.token_urlsafe(32)
     if '--desktop' in sys.argv: print('Skill-Desk control: '+token, flush=True)
     preferences_path = manager.state/'preferences.json'
@@ -369,6 +371,20 @@ def serve(catalog, port, generate, manager=None):
                     with manager.lock:
                         if manager.busy: raise ValueError('Wait for the current create/import job to finish before changing providers.')
                         result = AUTHOR.select(payload.get('provider'))
+                elif action == 'nearby-start':
+                    if manager.busy or manager.drafts: raise ValueError('Finish the skill job or preview before sharing.')
+                    result = manager.nearby.start(payload.get('mode'))
+                elif action == 'nearby-status':
+                    result = manager.nearby.session.snapshot() if manager.nearby.active else {'active': False}
+                elif action == 'nearby-stop': result = manager.nearby.stop()
+                elif action == 'nearby-probe': result = manager.nearby.current().probe(payload.get('address'))
+                elif action == 'nearby-decide':
+                    if type(payload.get('accept')) != bool: raise ValueError('Choose Accept or Reject.')
+                    result = manager.nearby.current().decide(payload.get('id'), payload['accept'])
+                elif action == 'nearby-send':
+                    package = getattr(manager, 'package_exports', {}).get(payload.get('export'))
+                    if not package: raise ValueError('Export expired. Prepare it again.')
+                    result = manager.nearby.current().send(payload.get('peer'), payload.get('pin'), payload.get('confirmed'), package)
                 elif action == 'package-export':
                     ids = payload.get('ids')
                     if not isinstance(ids, list) or not ids or len(ids) > 500 or not all(isinstance(x, str) for x in ids) or len(set(ids)) != len(ids): raise ValueError('Select up to 500 unique skills.')
@@ -397,12 +413,18 @@ def serve(catalog, port, generate, manager=None):
                     with destination.open('xb') as output: output.write(base64.b64decode(package['data']))
                     manager.package_exports.clear()
                     result = {'path': str(destination)}
-                elif action == 'package-preview':
+                elif action in {'package-preview', 'nearby-preview'}:
                     if manager.busy or len(manager.drafts) >= 20: raise ValueError('Finish the current job or discard previews first.')
                     target = payload.get('target', 'shared')
                     if target not in {'shared', 'codex', 'claude'}: raise ValueError('Choose an installation provider.')
                     target_root = manager.root if target == 'shared' else Path(os.environ.get('CLAUDE_CONFIG_DIR' if target == 'claude' else 'CODEX_HOME') or Path.home()/('.claude' if target == 'claude' else '.codex')).expanduser().resolve()/'skills'
+                    if action == 'nearby-preview':
+                        import base64
+                        received = manager.nearby.current().received
+                        if received is None: raise ValueError('No completed package to review.')
+                        payload = dict(payload, data=base64.b64encode(received).decode('ascii'))
                     result = import_package(manager, payload, target_root, discovery_roots()[:2] if target == 'codex' else [target_root])
+                    if action == 'nearby-preview': manager.nearby.stop()
                     result['destination'] = str(target_root)
                 elif action == 'copy-preview':
                     with manager.lock:
@@ -491,6 +513,7 @@ def serve(catalog, port, generate, manager=None):
     try: server.serve_forever()
     except KeyboardInterrupt: pass
     finally:
+        manager.nearby.stop()
         observer.stop(); observer.join(); server.server_close()
 
 

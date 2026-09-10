@@ -13,6 +13,8 @@ class UpdateGate:
 
     def prepare(self, manager):
         with manager.lock:
+            if getattr(getattr(manager, 'nearby', None), 'active', False):
+                return {'ready': False, 'reason': 'Close nearby sharing before installing an app update.'}
             if manager.busy or manager.drafts:
                 return {'ready': False, 'reason': 'Finish the skill job and install or discard its preview first.'}
             if not self.lock.acquire(blocking=False):

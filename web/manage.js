@@ -8,7 +8,7 @@ function renderManage(){
  document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
  document.querySelectorAll('[data-category]').forEach(b=>b.classList.remove('active'));
  const rows=manageData.installed.filter(s=>matchesHarness(s)&&(manageFilter==='All'||s.kind===manageFilter)&&query.toLowerCase().trim().split(/\s+/).every(t=>[s.name,s.description,s.kind,s.source].join(' ').toLowerCase().includes(t)));
- $('#content').innerHTML=`<div class="page manage-page"><div class="manage-heading"><div><span class="eyebrow">YOUR SKILL LIBRARY</span><h1>Manage skills</h1><p class="lead">Create a skill or bring one in. Available across projects in your selected local library.</p></div><div class="manage-actions"><button class="button" id="export-package">Export package</button><button class="button" id="import-package">Import package</button><button class="button" id="import-skill">Import skill</button><button class="button primary" id="create-skill">Create skill</button></div></div><div id="provider-controls"></div><div class="manage-filters">${['All','User Created','Repo Installed','Markdown Imported','Harness Copy','Package Imported','Existing'].map(k=>`<button class="button ${manageFilter===k?'primary':''}" data-origin="${k}">${k}</button>`).join('')}</div><p class="manage-note">${manageData.installed.length} installed · Removal archives the skill, so you can restore it later.</p><div class="manage-list">${rows.map(s=>`<article class="manage-row"><div><h2>${esc(s.name)}</h2><span class="tag">${esc(s.kind)}</span>${harnessBadges(s)}${s.linked?'<span class="tag">Linked folder</span>':''}<p>${esc(s.description)}</p><details><summary>Source</summary><p class="source-path">${esc(s.source)}</p></details>${s.error?`<p class="form-error">${esc(s.error)}</p>`:''}</div>${s.readOnly?'<span class="manage-note">Managed by its source CLI</span>':`<button class="button remove-button" data-remove="${esc(s.id)}">Remove</button>`}</article>`).join('')||'<p class="empty">No skills in this section yet.</p>'}</div><details class="archive-list"><summary>Removed skills (${manageData.archived.length})</summary>${manageData.archived.map(s=>`<div class="archive-row"><span>${esc(s.id)}<small>${esc(new Date(s.archived_at).toLocaleDateString())}</small></span><button class="button" data-restore="${esc(s.token)}">Restore</button></div>`).join('')}</details><p class="manage-note">Existing means installed outside Skill-Desk. New imports and creations have their source recorded automatically.</p></div>`;
+ $('#content').innerHTML=`<div class="page manage-page"><div class="manage-heading"><div><span class="eyebrow">YOUR SKILL LIBRARY</span><h1>Manage skills</h1><p class="lead">Create a skill or bring one in. Available across projects in your selected local library.</p></div><div class="manage-actions"><button class="button" id="nearby-receive">Receive from device</button><button class="button" id="export-package">Export package</button><button class="button" id="import-package">Import package</button><button class="button" id="import-skill">Import skill</button><button class="button primary" id="create-skill">Create skill</button></div></div><div id="provider-controls"></div><div class="manage-filters">${['All','User Created','Repo Installed','Markdown Imported','Harness Copy','Package Imported','Existing'].map(k=>`<button class="button ${manageFilter===k?'primary':''}" data-origin="${k}">${k}</button>`).join('')}</div><p class="manage-note">${manageData.installed.length} installed · Removal archives the skill, so you can restore it later.</p><div class="manage-list">${rows.map(s=>`<article class="manage-row"><div><h2>${esc(s.name)}</h2><span class="tag">${esc(s.kind)}</span>${harnessBadges(s)}${s.linked?'<span class="tag">Linked folder</span>':''}<p>${esc(s.description)}</p><details><summary>Source</summary><p class="source-path">${esc(s.source)}</p></details>${s.error?`<p class="form-error">${esc(s.error)}</p>`:''}</div>${s.readOnly?'<span class="manage-note">Managed by its source CLI</span>':`<button class="button remove-button" data-remove="${esc(s.id)}">Remove</button>`}</article>`).join('')||'<p class="empty">No skills in this section yet.</p>'}</div><details class="archive-list"><summary>Removed skills (${manageData.archived.length})</summary>${manageData.archived.map(s=>`<div class="archive-row"><span>${esc(s.id)}<small>${esc(new Date(s.archived_at).toLocaleDateString())}</small></span><button class="button" data-restore="${esc(s.token)}">Restore</button></div>`).join('')}</details><p class="manage-note">Existing means installed outside Skill-Desk. New imports and creations have their source recorded automatically.</p></div>`;
 }
 const modal=document.createElement('dialog');modal.className='skill-dialog';modal.innerHTML='<div id="dialog-body"></div>';document.body.append(modal);
 function showDialog(body){$('#dialog-body').innerHTML=body;if(!modal.open)modal.showModal();}
@@ -193,7 +193,8 @@ document.addEventListener('click',async e=>{
    if(!ids.length)throw Error('Select at least one skill.');
    b.disabled=true;$('#form-message').textContent='Preparing package…';
    const result=await api('/api/package-export',{ids});
-   showDialog(dialogHeader('Review export')+`<p>${result.manifest.skills.length} skills · ${(result.bytes/1000000).toFixed(2)} MB. The download contains the actual files listed below. Check them for private information before sharing.</p><div class="package-list">${result.manifest.skills.map(s=>`<details><summary>${esc(s.name)} · ${Object.keys(s.files).length} files</summary><ul>${Object.keys(s.files).map(f=>`<li>${esc(f)}</li>`).join('')}</ul></details>`).join('')}</div><p id="form-message" role="status"></p><button class="button primary" id="download-package">Download package</button>`);
+   showDialog(dialogHeader('Review export')+`<p>${result.manifest.skills.length} skills · ${(result.bytes/1000000).toFixed(2)} MB. The download contains the actual files listed below. Check them for private information before sharing.</p><div class="package-list">${result.manifest.skills.map(s=>`<details><summary>${esc(s.name)} · ${Object.keys(s.files).length} files</summary><ul>${Object.keys(s.files).map(f=>`<li>${esc(f)}</li>`).join('')}</ul></details>`).join('')}</div><p id="form-message" role="status"></p><div class="manage-actions"><button class="button" id="download-package">Download package</button><button class="button primary" id="nearby-send-export">Send to device</button></div>`);
+   $('#nearby-send-export').onclick=()=>openNearby('send',result.export);
    $('#download-package').textContent='Save package to Downloads';
    $('#download-package').onclick=async()=>{const button=$('#download-package');button.disabled=true;try{const saved=await api('/api/package-save',{export:result.export});$('#form-message').textContent='Saved to '+saved.path+'. Transfer this file to your other device and choose Import package.';}catch(err){errorMessage(err.message);button.disabled=false;}};
   }
@@ -210,7 +211,78 @@ document.addEventListener('click',async e=>{
    for(const candidate of selected){$('#form-message').textContent=`Installing ${installed+failures.length+1} of ${selected.length}…`;try{await api('/api/install',{draft:result.draft,candidate});installed++;const s=result.candidates.find(x=>x.candidate===candidate);s.conflict='Installed from this package.';}catch(err){failures.push(err.message);}}
    await loadManage();await syncCatalog();
    if(failures.length){previewPackage(result);$('#form-message').textContent=`Installed ${installed}. ${failures.join(' ')}`;}
-   else{await api('/api/discard',{draft:result.draft});activeDraft=null;modal.close();toast(`Installed ${installed} skills from package`);}
+   else{await api('/api/discard',{draft:result.draft});activeDraft=null;modal.close();render();toast(`Installed ${installed} skills from package`);}
   }
  }catch(err){errorMessage(err.message);}finally{if(b.id==='install-package')packageInstalling=false;if(b.isConnected)b.disabled=false;}
+});
+
+
+let nearbyView=null, nearbyTimer=null, nearbyStop=Promise.resolve();
+async function openNearby(mode,exportId=null){
+ if(activeDraft||activeJob||packageInstalling){toast('Finish the current skill job or preview first.');return;}
+ if(nearbyView)return;
+ const viewState={mode,exportId};nearbyView=viewState;
+ try{
+  await nearbyStop;
+  const state=await api('/api/nearby-start',{mode});
+  if(nearbyView!==viewState){await api('/api/nearby-stop',{});return;}
+  showDialog(dialogHeader(mode==='receive'?'Receive from another device':'Send to another device')+`<p>Keep Skill-Desk open on both devices on the same local network. Closing this window stops sharing.</p><div id="nearby-identity"></div><p class="manage-note" id="nearby-warning"></p>${mode==='send'?`<label for="nearby-peer">Receiving device</label><select id="nearby-peer"><option value="">Looking for devices…</option></select><p class="manage-note">Open Receive on the other device. If it does not appear, use its displayed address.</p><details><summary>Connect using an address</summary><label for="nearby-address">Receiver address and port</label><input id="nearby-address" placeholder="192.168.1.20:53317"><button class="button" id="nearby-probe">Find device</button></details><p>Receiver security code: <code id="nearby-peer-code">Choose a device</code></p><label class="checkbox-label"><input type="checkbox" id="nearby-confirm"> I checked that this code matches the receiving device.</label><label for="nearby-pin">Six-digit PIN shown on the receiver</label><input id="nearby-pin" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="000000"><button class="button primary" id="nearby-send">Request transfer</button>`:''}<div id="nearby-offer"></div><div id="nearby-progress"><progress max="100" value="0" aria-label="Transfer progress"></progress><span></span></div><p id="nearby-message" role="status"></p><div id="nearby-review" hidden><label for="nearby-target">Install into</label><select id="nearby-target"><option value="shared">Default skill library</option><option value="codex">Codex</option><option value="claude">Claude</option></select><button class="button primary" id="nearby-preview">Review received package</button></div><p id="form-message" role="alert"></p><p class="manage-note">Sharing stops after 10 minutes, or after 60 seconds without this window checking in. Only selected packages are shared; your installed library stays private.</p><button class="button" id="nearby-stop">Stop sharing</button>`);
+  paintNearby(state);
+  async function poll(){
+   if(nearbyView!==viewState)return;
+   try{const next=await api('/api/nearby-status',{});if(nearbyView!==viewState)return;paintNearby(next);if(!next.active)return;}
+   catch(error){if(nearbyView!==viewState)return;errorMessage('Connection lost. Sharing will expire automatically. '+error.message);}
+   if(nearbyView===viewState)nearbyTimer=setTimeout(poll,1000);
+  }
+  nearbyTimer=setTimeout(poll,1000);
+ }catch(error){nearbyView=null;errorMessage(error.message);}
+}
+function paintNearby(state){
+ if(!nearbyView||!$('#nearby-message'))return;
+ nearbyView.state=state;
+ if(!state.active){$('#nearby-message').textContent='Sharing has stopped. Close this window and reopen Send or Receive to try again.';document.querySelectorAll('#nearby-send,#nearby-probe,#nearby-preview,#nearby-accept,#nearby-reject').forEach(b=>b.disabled=true);return;}
+ $('#nearby-identity').innerHTML=`<p>Your device: <strong>${esc(state.alias)}</strong></p>${state.mode==='receive'?`<div class="nearby-codes"><div><small>Receiver PIN</small><strong>${esc(state.pin)}</strong></div><div><small>Security code · compare on sender</small><code>${esc(state.code)}</code></div></div><p class="manage-note">Address: ${state.addresses.map(esc).join(' or ')||'No local IPv4 address found. Connect to your local network.'}</p>`:''}`;
+ $('#nearby-warning').textContent=state.warning||'';
+ $('#nearby-message').textContent=state.message||'Ready. Waiting for another device.';
+ const progressing=['sending','transferring','receiving','waiting'].includes(state.phase);
+ $('#nearby-progress').hidden=!progressing;
+ $('#nearby-progress progress').value=state.progress;
+ $('#nearby-progress span').textContent=state.phase==='waiting'?'Waiting for acceptance…':state.progress+'%';
+ $('#nearby-review').hidden=state.phase!=='received';
+ const offer=state.phase==='offered'?state.incoming:null;
+ const offerKey=offer?.id||'';
+ if($('#nearby-offer').dataset.offer!==offerKey){$('#nearby-offer').dataset.offer=offerKey;$('#nearby-offer').innerHTML=offer?`<div class="nearby-offer"><h3>Incoming skill package</h3><p>${esc(offer.alias)} · ${esc(offer.ip)} · ${(offer.size/1000000).toFixed(2)} MB</p><p>Accept only the transfer you requested. Acceptance receives a package; it does not install skills.</p><div class="manage-actions"><button class="button" id="nearby-reject">Reject</button><button class="button primary" id="nearby-accept">Accept package</button></div></div>`:'';}
+ if(state.mode==='send'){
+  const select=$('#nearby-peer'), previous=select.value;
+  const options='<option value="">Choose a receiving device</option>'+state.peers.map(p=>`<option value="${esc(p.id)}">${esc(p.alias)} · ${esc(p.ip)}</option>`).join('');
+  if(select.innerHTML!==options){select.innerHTML=options;select.value=previous;if(select.value!==previous){$('#nearby-confirm').checked=false;$('#nearby-pin').value='';}}
+  const peer=state.peers.find(p=>p.id===select.value);$('#nearby-peer-code').textContent=peer?.code||'Choose a device';
+  const busy=['waiting','sending'].includes(state.phase);
+  $('#nearby-send').disabled=busy||state.phase==='sent';select.disabled=busy;$('#nearby-probe').disabled=busy;
+ }
+}
+modal.addEventListener('close',()=>{
+ if(!nearbyView)return;
+ nearbyView=null;clearTimeout(nearbyTimer);
+ nearbyStop=api('/api/nearby-stop',{}).catch(()=>toast('Sharing connection lost; the session will expire automatically.'));
+});
+modal.addEventListener('change',e=>{if(e.target.id==='nearby-peer'){$('#nearby-confirm').checked=false;$('#nearby-pin').value='';const peer=nearbyView?.state?.peers.find(p=>p.id===e.target.value);$('#nearby-peer-code').textContent=peer?.code||'Choose a device';}});
+document.addEventListener('click',async e=>{
+ const b=e.target.closest('button');if(!b||!['nearby-receive','nearby-stop','nearby-probe','nearby-send','nearby-accept','nearby-reject','nearby-preview'].includes(b.id))return;
+ b.disabled=true;
+ try{
+  if(b.id==='nearby-receive'){await openNearby('receive');return;}
+  if(b.id==='nearby-stop'){modal.close();return;}
+  if(!nearbyView)return;
+  const current=nearbyView;let state;
+  if(b.id==='nearby-probe')state=await api('/api/nearby-probe',{address:$('#nearby-address').value});
+  if(b.id==='nearby-send')state=await api('/api/nearby-send',{export:current.exportId,peer:$('#nearby-peer').value,pin:$('#nearby-pin').value,confirmed:$('#nearby-confirm').checked});
+  if(b.id==='nearby-accept'||b.id==='nearby-reject')state=await api('/api/nearby-decide',{id:current.state?.incoming?.id,accept:b.id==='nearby-accept'});
+  if(b.id==='nearby-preview'){
+   const result=await api('/api/nearby-preview',{target:$('#nearby-target').value});
+   if(nearbyView!==current)return;
+   nearbyView=null;clearTimeout(nearbyTimer);previewPackage(result);return;
+  }
+  if(nearbyView===current&&state)paintNearby(state);
+ }catch(error){errorMessage(error.message);}finally{if(b.isConnected&&!['nearby-send','nearby-preview'].includes(b.id))b.disabled=false;else if(b.isConnected&&b.id==='nearby-preview')b.disabled=false;}
 });

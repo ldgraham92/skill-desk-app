@@ -29,11 +29,14 @@ Packages preserve instructions rather than converting them for another provider.
 
 ## Transfer without hosting
 
+**[Built-in nearby sharing](NEARBY-SHARING.md)** lets you send an export directly to another Skill-Desk device. Choose **Send to device** from the export review; open **Receive from device** on the destination. No other app is required.
+
+
 - **USB drive or shared network folder:** copy the package and import it on the receiving device.
 - **[LocalSend](https://localsend.org/):** free, open-source transfers between nearby devices on the same local network, without an account or external server.
 - **[Syncthing](https://syncthing.net/):** synchronize a dedicated package-transfer folder between your devices without central storage. Import received packages through Skill-Desk when ready.
 
-These tools are optional and are not bundled or configured by Skill-Desk. This release provides manual package transfer, not automatic skill synchronization. Keeping a transfer folder separate from active skill directories preserves the import review and conflict checks.
+These tools are optional and are not bundled or configured by Skill-Desk. Skill-Desk supports reviewed file and nearby package transfers, not automatic skill synchronization. Keeping a transfer folder separate from active skill directories preserves the import review and conflict checks.
 
 ## Format and limits
 

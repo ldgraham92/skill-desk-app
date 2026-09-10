@@ -12,6 +12,7 @@ Skill-Desk is a free, open-source desktop manager for personal AI skills. It kee
 - Browse and search globally installed skills, save favorites, and copy example prompts.
 - Create a skill from a brief, track progress, review its instructions, and install it.
 - Import pasted Markdown, an MD file, or a complete skill folder from GitHub.
+- [Send packages to nearby devices](docs/NEARBY-SHARING.md) directly, with no extra app or hosted service.
 - [Export and import skill packages](docs/SKILL-PACKAGES.md) to move full skill folders between devices without hosting a service.
 - Track User Created, Repo Installed, Markdown Imported and Existing origins.
 - Archive removed skills and restore them with installation-conflict checks.
@@ -79,7 +80,7 @@ Curated and user-added skill libraries, a desktop library selector, signed insta
 
 ## License and attribution
 
-Skill-Desk is MIT licensed. See [LICENSE](LICENSE). The original bundled skill/reference material retains its separate copyright notice in [PSTACK-LICENSE.txt](PSTACK-LICENSE.txt). Imported third-party skills retain their own licenses.
+Skill-Desk is MIT licensed. See [LICENSE](LICENSE). The original bundled skill/reference material retains its separate copyright notice in [PSTACK-LICENSE.txt](PSTACK-LICENSE.txt). Imported third-party skills retain their own licenses. The bundled cryptography dependency retains its [upstream license notices](licenses/cryptography/LICENSE).
 
 ### Personal skill discovery
 

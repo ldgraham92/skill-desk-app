@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.5
+
+- Send skill packages directly to another Skill-Desk device on your local network, without another app or a hosted service.
+- Discover receivers automatically or enter an address; compare security codes, enter a PIN and accept each incoming package.
+- Encrypt transfers, report progress, validate received data and retain import review before installation.
+- Stop network listeners when sharing closes, expires or loses its UI connection.
+- Fix the immediate Manage refresh after bulk package installation and add packaged transfer tests on every platform.
+
 ## 0.2.4
 
 - Export selected skills as portable packages and import multiple skills with preview and conflict checks.
