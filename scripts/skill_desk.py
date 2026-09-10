@@ -144,7 +144,8 @@ class Catalog:
                     seen.add(canonical)
                     skill['library'] = str(root)
                     skill['managed'] = root == self.root
-                    skill['claude'] = root == Path(os.environ.get('CLAUDE_CONFIG_DIR') or Path.home()/'.claude').expanduser().resolve()/'skills' or '.claude' in root.parts
+                    claude_config = os.environ.get('CLAUDE_CONFIG_DIR')
+                    skill['claude'] = '.claude' in root.parts or bool(claude_config and root == Path(claude_config).expanduser().resolve()/'skills')
                     if root != self.root:
                         skill['id'] = 'library-' + hashlib.sha256(str(root).encode()).hexdigest()[:16] + '--' + skill['id']
                     skills.append(skill)

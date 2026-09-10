@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3
+
+Complete the personal library discovery fix without a redundant home-directory lookup. Version 0.1.2 did not pass Windows CI and was not released.
+
 ## 0.1.2
 
 Discover personal Codex and Claude skill folders alongside shared skills, with location overrides, linked-folder deduplication, and live updates for newly created folders.

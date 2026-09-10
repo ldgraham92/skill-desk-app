@@ -9,7 +9,7 @@ from skill_desk import Catalog, discovery_roots
 
 class DiscoveryTests(unittest.TestCase):
     def test_default_catalog_reads_all_personal_libraries(self):
-        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {}, clear=True):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {}, clear=True), patch('skill_desk.Path.home', side_effect=RuntimeError('No home available')):
             home = Path(tmp)
             for relative in ('.agents/skills', '.codex/skills', '.claude/skills'):
                 folder = home/relative/'same-name'; folder.mkdir(parents=True)
