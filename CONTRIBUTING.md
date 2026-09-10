@@ -13,4 +13,6 @@ Tests use temporary libraries. Do not test destructive operations against person
 
 The core service lives in `scripts/`; the desktop wrapper in `src-tauri/`; management UI in `web/`; the standalone demonstration in `marketing/`. The original `index.html` is transformed into the live reference UI by the server. Keep the demo honest about which workflows are simulated.
 
+Edit shared appearance in `web/theme.css` and `web/theme.js`, then run `python scripts/sync_ui_assets.py`. This embeds the assets in the library, demo and native windows so they work offline. CI checks that these copies stay in sync. Verify both themes, reduced motion, narrow layouts and print styles after appearance changes.
+
 Contributions are provided under the MIT license. Preserve third-party attribution and licenses. We do not require a contributor license agreement.

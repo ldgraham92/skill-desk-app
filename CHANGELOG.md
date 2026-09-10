@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+Add a dark default theme, remembered appearance, refined navigation, accessible focus and hover states, and reduced-motion support across the app and demo. Correct provider-specific prompt copying and quick-reference skill names. Refresh the demo’s cross-platform installation and updater information.
+
 ## 0.2.0
 
 Introduce signed in-app updates, native progress and retry controls, a GitHub update feed, and Linux AppImage distribution. Active skill work completes before installation.

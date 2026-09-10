@@ -1,5 +1,3 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Skill-Desk updates</title><style>body{font:15px system-ui;color:#242624;background:#faf9f6;margin:32px}h1{font-size:27px}p{line-height:1.6}button{font:inherit;padding:10px 14px;border:1px solid #c7cbc2;border-radius:5px;background:white;cursor:pointer}button.primary{background:#ad4529;color:white;border-color:#ad4529}button:disabled{opacity:.5;cursor:default}pre{white-space:pre-wrap;max-height:180px;overflow:auto;font:13px/1.5 system-ui}progress{width:100%}#message{overflow-wrap:anywhere}#current{color:#686d68}.actions{display:flex;gap:10px}</style><!-- shared-theme:start -->
-<style>
 /* Shared by the library, portable demo and native windows. Keep these offline. */
 :root{color-scheme:dark;--paper:#111315;--side:#171a1d;--white:#1c2024;--ink:#edf0f2;--muted:#a3abb3;--line:#30363c;--accent:#efa782;--wash:#30241f;--hover:#242a30;--on-accent:#21160f;--success:#92c9a2;--danger:#ffaca3;--shadow:0 20px 70px #0006;--rust:var(--accent);--sage:var(--side);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 :root[data-theme=light]{color-scheme:light;--paper:#fafbfc;--side:#f0f2f4;--white:#fff;--ink:#23282e;--muted:#59636e;--line:#d6dce2;--accent:#a54521;--wash:#fbede5;--hover:#e6eaee;--on-accent:#fff;--success:#316442;--danger:#aa302b;--shadow:0 20px 70px #18202b20}
@@ -16,25 +14,3 @@ body[data-ui=native]{margin:0;padding:32px;font-size:15px;line-height:1.6}body[d
 @media(max-width:760px){.topbar{height:auto;position:static;flex-wrap:wrap;padding:14px}.searchwrap{flex-basis:100%}.sidebar{padding:18px}.sidebar .brand{font-size:23px}.nav button{padding:9px 10px;font-size:12px}.nav button svg{width:15px;height:15px}.workflow .nav button svg{display:none}.skill-list{position:static;max-height:265px}.detail{padding:26px 20px}.columns>section{padding:16px}.manage-actions .button{white-space:normal}.manage-row{flex-wrap:wrap}.manage-row>div{min-width:0}.prompt-head{flex-wrap:wrap}.source{overflow-wrap:anywhere}.reference{table-layout:fixed}.reference td{overflow-wrap:anywhere}body[data-ui=demo] header{gap:10px}body[data-ui=demo] header nav{gap:10px}body[data-ui=demo] [data-theme-toggle] span{display:none}body[data-ui=demo] .features li{grid-template-columns:22px 1fr}body[data-ui=demo] .features li span{grid-column:2}body[data-ui=demo] .manage-row button{max-width:100%;white-space:normal}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media print{:root,:root[data-theme=dark],:root[data-theme=light]{color-scheme:light;--paper:white;--side:#f1f1f1;--white:white;--ink:#111;--muted:#444;--line:#ccc;--accent:#923d20;--wash:#f7eee8;--on-accent:white;--rust:var(--accent);--sage:var(--side)}body{background:white;color:#111}button[data-theme-toggle]{display:none!important}body[data-ui=demo] .showroom{box-shadow:none}}
-</style>
-<script>
-/* Run in the head, before paint. No remote assets or background polling. */
-(()=>{
- const key='skill-desk-theme',root=document.documentElement;
- let theme='dark';try{theme=localStorage.getItem(key)==='light'?'light':'dark';}catch{}
- if(['dark','light'].includes(window.skillDeskTheme))theme=window.skillDeskTheme;
- function apply(value){theme=value;root.dataset.theme=theme;document.querySelector('meta[name="color-scheme"]')?.setAttribute('content',theme);document.querySelectorAll('[data-theme-toggle]').forEach(button=>{button.setAttribute('aria-label','Switch to '+(theme==='dark'?'light':'dark')+' mode');button.title=button.getAttribute('aria-label');button.setAttribute('aria-pressed',String(theme==='dark'));button.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+(theme==='dark'?'<path d="M20 14a8 8 0 0 1-10-10 8 8 0 1 0 10 10Z"/>':'<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>')+'</svg><span>'+ (theme==='dark'?'Dark':'Light')+'</span>';});}
- apply(theme);
- document.addEventListener('DOMContentLoaded',()=>apply(theme));
- document.addEventListener('click',event=>{if(!event.target.closest('[data-theme-toggle]'))return;apply(theme==='dark'?'light':'dark');try{localStorage.setItem(key,theme);}catch{}window.skillDeskSaveTheme?.(theme);});
- window.addEventListener('storage',event=>{if(event.key===key)apply(event.newValue==='light'?'light':'dark');});
-})();
-</script>
-<!-- shared-theme:end -->
-</head><body data-ui="native"><h1>Skill-Desk updates</h1><p id="current"></p><p id="message" role="status">Checking update status…</p><progress hidden id="progress"></progress><pre id="notes"></pre><div class="actions"><button id="check">Check for updates</button><button class="primary" id="install" hidden>Update and restart</button></div><p>Your skills and CLI accounts stay on this computer. Finish or discard skill previews before installing an update.</p><script>
-const invoke=window.__TAURI__.core.invoke;
-const el=id=>document.getElementById(id);
-async function refresh(){try{const s=await invoke('update_status');el('current').textContent='Installed version '+s.currentVersion;const busy=['checking','downloading','waiting','installing'].includes(s.phase);el('check').disabled=busy;el('install').hidden=s.phase!=='available';el('message').textContent=({idle:'Check for a new release.',checking:'Checking GitHub for updates…',available:'Version '+s.version+' is available.',current:'You are up to date.',downloading:'Downloading and verifying update…',waiting:s.message,installing:'Installing update. Skill-Desk will restart.',error:s.message})[s.phase]||'';el('notes').textContent=s.notes||'';el('progress').hidden=s.phase!=='downloading';if(s.total){el('progress').max=s.total;el('progress').value=s.downloaded;}else el('progress').removeAttribute('value');}catch(e){el('message').textContent=String(e);}}
-el('check').onclick=async()=>{el('check').disabled=true;try{await invoke('update_check');}catch(e){el('message').textContent=String(e);}refresh();};el('install').onclick=async()=>{el('install').disabled=true;try{await invoke('update_install');}catch(e){el('message').textContent=String(e);}finally{el('install').disabled=false;refresh();}};
-refresh();setInterval(refresh,700);
-</script></body></html>

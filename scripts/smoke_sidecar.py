@@ -43,6 +43,12 @@ def main():
             with urllib.request.urlopen(request,timeout=5) as response: assert response.status==200
             assert b'let saved=["smoke-test"]' in get('/')
             assert json.loads((Path(tmp)/'state/preferences.json').read_text())['saved']==['smoke-test']
+            request=urllib.request.Request(url+'/api/preferences', data=json.dumps({'theme':'light'}).encode(), headers={'Content-Type':'application/json','Origin':url,'X-Skill-Desk-Token':token})
+            urllib.request.urlopen(request, timeout=10).read()
+            assert b'window.skillDeskTheme="light"' in get('/')
+            preferences=json.loads((Path(tmp)/'state/preferences.json').read_text())
+            assert preferences['saved']==['smoke-test'] and preferences['theme']=='light'
+
             assert json.loads(get('/api/skills'))['skills'] == []
             skill = root/'smoke-test'; skill.mkdir()
             (skill/'SKILL.md').write_text('---\nname: smoke-test\ndescription: Use to test packaging.\n---\nA caf\u00e9 test.', encoding='utf-8')

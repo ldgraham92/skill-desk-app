@@ -212,7 +212,7 @@ class Catalog:
             self.refresh(generate=False)
 
 
-def live_html(token="", saved=None):
+def live_html(token="", saved=None, theme="dark"):
     page = (PROJECT / 'index.html').read_text(encoding='utf-8')
     page = page.replace('<span>▤</span> Skill desk', '<svg aria-hidden="true" width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 5h16M4 10h11M4 15h16M4 20h11"/></svg> Skill-Desk')
     if saved is not None:
@@ -225,7 +225,7 @@ def live_html(token="", saved=None):
     page = page.replace('all 19 skills', 'all installed skills')
     # Replace collection-specific overview text only in the live view.
     start, end = page.index('function overview(){'), page.index('function reference(){')
-    page = page[:start] + '''function overview(){return `<div class="page"><h1>Your global skills</h1><p class="lead">Browse installed skills and copy an example prompt for your task.</p><p>This view reads your global skills directory. Codex writes reference guidance when a skill is added or its documentation changes. Installed invocation policies determine how each skill starts.</p><p>Descriptions are generated guidance. Open the installed instructions for the source.</p></div>`}
+    page = page[:start] + '''function overview(){return `<div class="page"><h1>Your global skills</h1><p class="lead">Browse installed skills and copy an example prompt for your task.</p><p>This view reads your global Codex and Claude skills directories. Your selected Codex or Claude Code CLI writes reference guidance when a skill is added or its documentation changes. Use $skill-name in Codex and /skill-name in Claude Code. Installed invocation policies determine how each skill starts.</p><p>Descriptions are generated guidance. Open the installed instructions for the source.</p></div>`}
 ''' + page[end:]
     extra = '''<script>
 let lastCatalog='';
@@ -235,14 +235,15 @@ async function syncCatalog(){
   const response=await fetch('/api/skills',{cache:'no-store'}); if(!response.ok) throw Error('Sync unavailable');
   const data=await response.json(); const signature=JSON.stringify(data.skills);
   if(signature!==lastCatalog){lastCatalog=signature; skills.splice(0,skills.length,...data.skills);render();
-   $('#printguide').innerHTML='<h1>Global skills</h1>'+skills.filter(s=>typeof matchesHarness==='undefined'||matchesHarness(s)).map(s=>`<article><h2>${esc(s.name||s.id)}</h2><p>${esc(s.summary)}</p><pre>${esc(s.prompt)}</pre></article>`).join('');}
+   $('#printguide').innerHTML='<h1>Global skills</h1>'+skills.filter(s=>typeof matchesHarness==='undefined'||matchesHarness(s)).map(s=>`<article><h2>${esc(s.name||s.id)}</h2><p>${esc(s.summary)}</p><pre>${esc(skillPrompt(s))}</pre></article>`).join('');}
   const footer=document.querySelector('.sidebar footer');footer.textContent=data.status;
   if(data.errors.length){const details=document.createElement('details');const summary=document.createElement('summary');summary.textContent='Sync errors';details.append(summary);const text=document.createElement('pre');text.style.whiteSpace='pre-wrap';text.textContent=data.errors.join('\\n');details.append(text);footer.append(details);}
  }catch(e){document.querySelector('.sidebar footer').textContent='Server disconnected. Showing last loaded skills.';}
 }
 syncCatalog();const catalogEvents=new EventSource('/api/events');catalogEvents.onmessage=()=>{syncCatalog();window.dispatchEvent(new Event('skilldesk-change'));};
 </script>'''
-    page = page.replace('</head>', '<link rel="stylesheet" href="/manage.css"></head>')
+    page = page.replace('<!-- shared-theme:start -->', '<script>window.skillDeskTheme='+json.dumps(theme if theme in ('dark','light') else 'dark')+';</script><!-- shared-theme:start -->')
+    page = page.replace('<!-- shared-theme:start -->', '<link rel="stylesheet" href="/manage.css"><!-- shared-theme:start -->')
     extra += '<script>window.skillDeskToken=' + json.dumps(token) + ';</script><script src="/manage.js"></script>'
     return page.replace('</body>', extra + '</body>').encode()
 
@@ -252,11 +253,14 @@ def serve(catalog, port, generate, manager=None):
     token = secrets.token_urlsafe(32)
     if '--desktop' in sys.argv: print('Skill-Desk control: '+token, flush=True)
     preferences_path = manager.state/'preferences.json'
-    def read_saved():
+    def read_preferences():
         try:
-            value = json.loads(preferences_path.read_text(encoding='utf-8')).get('saved', [])
-            return value if isinstance(value, list) and all(isinstance(x,str) for x in value) else []
-        except (OSError, ValueError, AttributeError): return []
+            value = json.loads(preferences_path.read_text(encoding='utf-8'))
+            if not isinstance(value, dict): return {}
+            saved = value.get('saved', [])
+            return {'saved': saved if isinstance(saved, list) and all(isinstance(x,str) for x in saved) else [],
+                    'theme': 'light' if value.get('theme') == 'light' else 'dark'}
+        except (OSError, ValueError): return {}
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             if self.headers.get('Host') not in {f'127.0.0.1:{port}', f'localhost:{port}'}:
@@ -265,7 +269,8 @@ def serve(catalog, port, generate, manager=None):
             if path in {'/demo', '/demo/'}:
                 data, mime = (PROJECT/'marketing/index.html').read_bytes(), 'text/html; charset=utf-8'
             elif path in {'/', '/index.html'}:
-                data, mime = live_html(token, read_saved()), 'text/html; charset=utf-8'
+                preferences = read_preferences()
+                data, mime = live_html(token, preferences.get('saved', []), preferences.get('theme', 'dark')), 'text/html; charset=utf-8'
             elif path == '/api/events':
                 self.send_response(200)
                 self.send_header('Content-Type', 'text/event-stream')
@@ -344,13 +349,19 @@ def serve(catalog, port, generate, manager=None):
                 with manager.lock:
                     if UPDATE_GATE.pending: raise ValueError('Skill-Desk is installing an app update. Please wait for the restart.')
                 if action == 'preferences':
-                    saved = payload.get('saved')
-                    if not isinstance(saved, list) or len(saved)>10000 or not all(isinstance(x,str) and len(x)<=200 for x in saved): raise ValueError('Invalid favorites list.')
-                    with manager.lock:
-                        temp = preferences_path.with_suffix('.tmp')
-                        temp.write_text(json.dumps({'saved': saved}), encoding='utf-8')
-                        temp.replace(preferences_path)
-                    result = {'saved': saved}
+                    preferences = read_preferences()
+                    if 'saved' in payload:
+                        saved = payload['saved']
+                        if not isinstance(saved, list) or len(saved)>10000 or not all(isinstance(x,str) and len(x)<=200 for x in saved): raise ValueError('Invalid favorites list.')
+                        preferences['saved'] = saved
+                    if 'theme' in payload:
+                        if payload['theme'] not in ('dark', 'light'): raise ValueError('Invalid theme.')
+                        preferences['theme'] = payload['theme']
+                    if not payload or set(payload) - {'saved', 'theme'}: raise ValueError('Unknown preference.')
+                    temp = preferences_path.with_suffix('.tmp')
+                    temp.write_text(json.dumps(preferences), encoding='utf-8')
+                    temp.replace(preferences_path)
+                    result = preferences
                 elif action == 'provider':
                     with manager.lock:
                         if manager.busy: raise ValueError('Wait for the current create/import job to finish before changing providers.')

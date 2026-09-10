@@ -1,7 +1,7 @@
 'use strict';
 let providerData=null;
 let manageData={installed:[],archived:[]}, activeDraft=null, activeJob=null, manageFilter='All', lastManage='';
-const manageNav=document.createElement('button');manageNav.dataset.view='manage';manageNav.textContent='Manage';$('#mainnav').append(manageNav);
+const manageNav=document.createElement('button');manageNav.dataset.view='manage';manageNav.innerHTML='<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M7 4v6M4 17h16M16 14v6"/></svg>Manage skills';$('#mainnav').append(manageNav);
 const originalRender=render;
 render=function(){if(view==='manage'){renderManage();renderProviderControls();}else originalRender();};
 function renderManage(){
@@ -17,7 +17,7 @@ function dialogHeader(title){return `<div class="dialog-heading"><h2>${title}</h
 async function api(path,body){const options=body===undefined?{signal:AbortSignal.timeout(15000)}:{method:'POST',headers:{'Content-Type':'application/json','X-Skill-Desk-Token':window.skillDeskToken},body:JSON.stringify(body)};const response=await fetch(path,options);const data=await response.json().catch(()=>({error:'Request failed'}));if(!response.ok){const error=Error(data.error||'Request failed');error.status=response.status;throw error;}return data;}
 async function loadManage(){try{const next=await api('/api/manage');const signature=JSON.stringify(next);manageData=next;if(view==='manage'&&!modal.open&&signature!==lastManage)renderManage();lastManage=signature;renderProviderControls();}catch(e){if(view==='manage')toast(e.message);}}
 function createForm(){showDialog(dialogHeader('Create a skill')+`<form id="create-form"><label for="skill-brief">What should this skill help you do?</label><textarea id="skill-brief" required maxlength="30000" rows="9" placeholder="Describe the purpose, when to use it, the steps or rules that matter, and the result you want. Include an example request if useful."></textarea><label class="checkbox-label"><input type="checkbox" id="explicit-skill"> Only use when I explicitly request it</label><p class="manage-note">Uses your selected authoring CLI with the installed skill-authoring guidance. You can review the generated instructions before installing.</p><p id="form-message" role="status"></p><button class="button primary" type="submit">Generate preview</button></form>`);}
-function importForm(){showDialog(dialogHeader('Import a skill')+`<form id="import-form"><label for="import-mode">Import from</label><select id="import-mode"><option value="markdown">Markdown text or file</option><option value="github">GitHub repository</option></select><div id="markdown-fields"><label for="md-file">Markdown file</label><input type="file" id="md-file" accept=".md,.markdown,text/markdown,text/plain"><label for="md-content">Or paste Markdown</label><textarea id="md-content" rows="7" maxlength="200000" placeholder="Paste SKILL.md, including its YAML name and description."></textarea><details><summary>Ordinary Markdown without skill metadata?</summary><label for="md-name">Skill name</label><input id="md-name" placeholder="my-skill" maxlength="63"><label for="md-description">When should Codex use this skill?</label><input id="md-description" maxlength="1024"></details></div><div id="github-fields" hidden><label for="repo-url">GitHub URL</label><input type="url" id="repo-url" placeholder="https://github.com/owner/repository"><label for="repo-ref">Branch or tag <small>optional</small></label><input id="repo-ref" placeholder="Repository default"><label for="repo-path">Skill folder <small>optional</small></label><input id="repo-path" placeholder="skills/my-skill"><p class="manage-note">Repository imports preserve the complete skill folder, including references, scripts, licenses, and invocation settings. For branch names containing slashes, use the repository URL and enter the full branch here.</p></div><p id="form-message" role="status"></p><button class="button primary" type="submit">Preview import</button></form>`);}
+function importForm(){showDialog(dialogHeader('Import a skill')+`<form id="import-form"><label for="import-mode">Import from</label><select id="import-mode"><option value="markdown">Markdown text or file</option><option value="github">GitHub repository</option></select><div id="markdown-fields"><label for="md-file">Markdown file</label><input type="file" id="md-file" accept=".md,.markdown,text/markdown,text/plain"><label for="md-content">Or paste Markdown</label><textarea id="md-content" rows="7" maxlength="200000" placeholder="Paste SKILL.md, including its YAML name and description."></textarea><details><summary>Ordinary Markdown without skill metadata?</summary><label for="md-name">Skill name</label><input id="md-name" placeholder="my-skill" maxlength="63"><label for="md-description">When should the agent use this skill?</label><input id="md-description" maxlength="1024"></details></div><div id="github-fields" hidden><label for="repo-url">GitHub URL</label><input type="url" id="repo-url" placeholder="https://github.com/owner/repository"><label for="repo-ref">Branch or tag <small>optional</small></label><input id="repo-ref" placeholder="Repository default"><label for="repo-path">Skill folder <small>optional</small></label><input id="repo-path" placeholder="skills/my-skill"><p class="manage-note">Repository imports preserve the complete skill folder, including references, scripts, licenses, and invocation settings. For branch names containing slashes, use the repository URL and enter the full branch here.</p></div><p id="form-message" role="status"></p><button class="button primary" type="submit">Preview import</button></form>`);}
 function previewDraft(result){activeDraft=result;showDialog(dialogHeader('Review skill')+(result.targetHarness?`<p>Install a separate copy in ${harnessLabel(result.targetHarness)}. All included files are preserved. Review any harness-specific tools or instructions before using the copy.</p>`:'')+`<p><span class="tag">${esc(result.kind)}</span></p>${result.candidates.length>1?`<label for="candidate">Choose a skill to install</label><select id="candidate">${result.candidates.map(s=>`<option value="${esc(s.candidate)}">${esc(s.name)}</option>`).join('')}</select>`:''}<div id="candidate-preview"></div><p id="form-message" role="status"></p><div class="manage-actions"><button class="button" id="discard-draft">Discard preview</button><button class="button primary" id="install-draft">${result.targetHarness?'Install in '+harnessLabel(result.targetHarness):'Install globally'}</button></div>`);renderCandidate();}
 function selectedCandidate(){return activeDraft.candidates.find(x=>x.candidate===($('#candidate')?.value||activeDraft.candidates[0].candidate));}
 function renderCandidate(){const s=selectedCandidate();$('#candidate-preview').innerHTML=`<h3>${esc(s.name)}</h3><p>${esc(s.description)}</p><p class="manage-note">${esc(s.invocation)} · ${s.files.length} files</p><details><summary>Included files</summary><ul>${s.files.map(f=>`<li>${esc(f)}</li>`).join('')}</ul></details><pre class="skill-preview">${esc(s.content)}</pre>${s.conflict?`<p class="form-error">${esc(s.conflict)}</p>`:''}`;$('#install-draft').disabled=!!s.conflict;}
@@ -125,23 +125,23 @@ try{harnessFilter=localStorage.getItem('skill-desk-harness')||'all';}catch{}
 if(!['all','codex','claude'].includes(harnessFilter))harnessFilter='all';
 const harnessLabel=h=>h==='claude'?'Claude':'Codex';
 const harnessSelect=document.createElement('select');
-harnessSelect.id='skill-harness';harnessSelect.setAttribute('aria-label','Skill harness');
-harnessSelect.innerHTML='<option value="all">All</option><option value="codex">Codex</option><option value="claude">Claude</option>';
+harnessSelect.id='skill-harness';harnessSelect.setAttribute('aria-label','Skill provider');
+harnessSelect.innerHTML='<option value="all">All providers</option><option value="codex">Codex</option><option value="claude">Claude</option>';
 harnessSelect.value=harnessFilter;$('#print').before(harnessSelect);
 const matchesHarness=s=>harnessFilter==='all'||(s.harnesses||[]).includes(harnessFilter);
 const originalFiltered=filtered;
 filtered=function(){return originalFiltered().filter(matchesHarness);};
 const originalDetail=detail;
-function harnessBadges(s){return (s.harnesses||[]).map(h=>`<span class="tag">${harnessLabel(h)}</span>`).join('');}
+function harnessBadges(s){return (s.harnesses||[]).map(h=>`<span class="tag" data-harness="${h}">${harnessLabel(h)}</span>`).join('');}
 function harnessActions(s){
  const missing=['codex','claude'].filter(h=>!(s.installedHarnesses||s.harnesses||[]).includes(h));
  return `<div class="harness-actions">${harnessBadges(s)}${missing.map(h=>`<button class="button" data-copy-harness="${h}" data-copy-skill="${esc(s.id)}">Install in ${harnessLabel(h)}</button>`).join('')}</div>`;
 }
-detail=function(s){return originalDetail(s).replace(`<h1>${esc(s.id)}</h1>`,`<h1>${esc(s.name||s.title)}</h1>`).replace('<div class="columns">',harnessActions(s)+'<div class="columns">').replace('Try this in Codex','Try this in '+harnessLabel((s.harnesses||['codex'])[0]));};
+detail=function(s){const display={...s,invocationText:(s.invocationText||'').replaceAll('$'+skillName(s),skillInvocation(s)).replaceAll('/'+skillName(s),skillInvocation(s)).replaceAll(promptProvider(s)==='claude'?'Codex':'Claude',harnessLabel(promptProvider(s)))};return originalDetail(display).replace(`<h1>${esc(s.id)}</h1>`,`<h1>${esc(s.name||s.title)}</h1>`).replace('<div class="columns">',harnessActions(s)+'<div class="columns">').replace('Try this in Codex','Try this in '+harnessLabel(promptProvider(s)));};
 const renderWithManagement=render;
 render=function(){
  renderWithManagement();
- $('#printguide').innerHTML='<h1>Skills · '+(harnessFilter==='all'?'All':harnessLabel(harnessFilter))+'</h1>'+skills.filter(matchesHarness).map(s=>`<article><h2>${esc(s.name||s.title)}</h2><p>${esc(s.summary)}</p><pre>${esc(s.prompt)}</pre></article>`).join('');
+ $('#printguide').innerHTML='<h1>Skills · '+(harnessFilter==='all'?'All':harnessLabel(harnessFilter))+'</h1>'+skills.filter(matchesHarness).map(s=>`<article><h2>${esc(s.name||s.title)}</h2><p>${esc(s.summary)}</p><pre>${esc(skillPrompt(s))}</pre></article>`).join('');
  document.querySelectorAll('.skill-row').forEach(el=>{
   const s=skills.find(x=>x.id===el.dataset.skill);if(!s)return;
   el.querySelector('.row-name').textContent=s.name||s.title;
@@ -164,3 +164,7 @@ document.addEventListener('click',async e=>{
  }catch(error){toast(error.message);}finally{b.disabled=false;}
 });
 render();
+
+// The desktop service uses a new port after restarting; save appearance with the library.
+let themeSave=Promise.resolve();
+window.skillDeskSaveTheme=value=>{themeSave=themeSave.then(()=>api('/api/preferences',{theme:value})).catch(()=>toast('Could not save the theme. Please retry.'));};
