@@ -116,7 +116,12 @@ class NearbyTests(unittest.TestCase):
         route=self.accepted_offer()
         conn,_=self.sender.connection('127.0.0.1',self.receiver.port,self.receiver.fingerprint)
         conn.putrequest('POST',route);conn.putheader('Content-Length',str(len(self.raw)));conn.endheaders()
-        conn.send(self.raw[:10]);self.sender.close_connection(conn)
+        conn.send(self.raw[:10])
+        # Wait until headers arrive, then cut an upload that has actually begun.
+        # An immediate Windows close can discard the request before it arrives.
+        self.wait(lambda:self.receiver.phase=='transferring')
+        conn.sock.shutdown(socket.SHUT_RDWR)
+        self.sender.close_connection(conn)
         self.wait(lambda:self.receiver.phase=='failed')
         self.assertIsNone(self.receiver.received)
         self.assertIsNone(self.receiver.pending)
