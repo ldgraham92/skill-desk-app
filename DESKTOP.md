@@ -10,7 +10,7 @@ macOS: open the DMG and drag Skill-Desk into Applications. The initial local bui
 
 Linux: CI produces a Debian package on Ubuntu 22.04. The package needs the system WebKitGTK runtime. Linux desktop/tray behavior needs a supported graphical session.
 
-These initial packages are unsigned developer previews. Public signing and notarization have not been configured. There is no automatic updater or login startup registration in this preview.
+These initial packages are unsigned developer previews. Public signing and notarization have not been configured. The in-app updater verifies release signatures separately from OS publisher signing. Login startup registration is not configured.
 
 ## Everyday use
 
@@ -24,22 +24,9 @@ The desktop webview is not granted Tauri filesystem or shell permissions. Native
 
 ## Local builds
 
-Install Node.js, Rust, Python 3.9+ and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your build OS. Build each platform on that platform; the Python helper is not cross-compiled.
+Follow the **[build-it-yourself guide](docs/BUILD-YOUR-OWN.md)** for prerequisites, platform-specific commands, verification, development mode and unsigned installer builds. Build each platform on that platform; the Python service is not cross-compiled.
 
-```sh
-python -m venv .venv
-# Activate .venv using the command for your shell, then:
-python -m pip install -r requirements-build.txt
-npm ci
-python -m unittest discover -s tests -v
-python scripts/build_sidecar.py
-python scripts/smoke_sidecar.py
-npm run desktop:build
-```
-
-On Windows PowerShell, activate with `.venv\Scripts\Activate.ps1`. On macOS/Linux, use `source .venv/bin/activate`. If PowerShell activation is restricted, call `.venv\Scripts\python.exe` directly. Rust's cargo/bin directory must be on PATH. `npm run desktop:dev` also requires a built helper.
-
-Output: `src-tauri/target/release/bundle/`. CI runs the same tests and packaged-helper smoke check before producing installer artifacts for Windows, macOS and Linux. Run the **Desktop installers** workflow manually, or push a version tag. Successful version-tag builds publish all installers and SHA-256 checksums to GitHub Releases. Main-branch and pull-request builds upload workflow artifacts only. See docs/RELEASING.md.
+Our [Actions workflow](.github/workflows/desktop.yml) runs tests and the packaged-service smoke check before producing installers. Main and pull-request builds upload workflow artifacts. Version tags publish release assets after all platforms pass; see [release instructions](docs/RELEASING.md).
 
 ## Storage and icons
 

@@ -31,9 +31,16 @@ Choose the appropriate asset from [Releases](https://github.com/ldgraham92/skill
 
 Python is bundled. Browsing and Markdown imports do not require an AI account. AI authoring requires an installed and signed-in Codex or Claude Code CLI. GitHub repository imports require Git. CLI usage consumes your provider account's allowance; Skill-Desk does not operate a paid generation service.
 
-The initial releases are unsigned previews. Windows/Linux graphical installation and runtime testing are still being collected. There is no in-app updater yet; download newer releases from GitHub.
+The releases are previews without Windows publisher signing or macOS notarization. The in-app updater verifies release signatures before installation; see [app updates](#app-updates).
 
 The desktop app currently manages `~/.agents/skills`. Authoring-provider selection does not change the installation directory. The development server supports `--library claude` for `~/.claude/skills`; a desktop library selector is planned.
+
+## Prefer to build it yourself?
+
+You can review the source, run Skill-Desk locally, and compile your own installer. Our **[build-it-yourself guide](docs/BUILD-YOUR-OWN.md)** covers Windows, macOS and Linux, including prerequisites, verification, installer locations and builds without a private signing key.
+
+> [!NOTE]
+> Windows publisher signing is not configured for these previews. Release updates carry a separate signature that Skill-Desk verifies. Building from source is available if you prefer it; it does not add an OS publisher signature.
 
 ## Hosting the marketing site
 
