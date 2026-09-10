@@ -287,21 +287,22 @@ def serve(catalog, port, generate, manager=None):
                 except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError): pass
                 return
             elif path == '/api/skills':
-                snapshot = catalog.snapshot()
-                with manager.lock:
+                with manager.lock, catalog.lock:
+                    snapshot = catalog.snapshot()
                     snapshot['skills'] = [dict(row, source=manager.registry.get(str(Path(catalog.files[row['id']]).parent), {}).get('kind', 'Existing')) for row in snapshot['skills']]
                 data, mime = json.dumps(snapshot).encode(), 'application/json'
             elif path == '/api/providers':
                 data, mime = json.dumps(dict(AUTHOR.snapshot(), root=str(catalog.root), libraries=[str(p) for p in catalog.roots])).encode(), 'application/json'
             elif path == '/api/manage':
-                listing = manager.listing()
-                by_id = {row['id']: row for row in catalog.snapshot()['skills']}
-                for item in listing['installed']:
-                    item['harnesses'] = by_id.get(item['id'], {}).get('harnesses', ['codex'])
-                for row in catalog.snapshot()['skills']:
-                    if not row['managed']:
-                        record = manager.registry.get(str(Path(catalog.files[row['id']]).parent), {})
-                        listing['installed'].append(dict(id=row['id'], name=row['name'], description=row['summary'], kind=record.get('kind', 'Existing'), source=record.get('source', row['library']), harnesses=row['harnesses'], readOnly=True))
+                with manager.lock, catalog.lock:
+                    listing = manager.listing()
+                    by_id = {row['id']: row for row in catalog.snapshot()['skills']}
+                    for item in listing['installed']:
+                        item['harnesses'] = by_id.get(item['id'], {}).get('harnesses', ['codex'])
+                    for row in catalog.snapshot()['skills']:
+                        if not row['managed']:
+                            record = manager.registry.get(str(Path(catalog.files[row['id']]).parent), {})
+                            listing['installed'].append(dict(id=row['id'], name=row['name'], description=row['summary'], kind=record.get('kind', 'Existing'), source=record.get('source', row['library']), harnesses=row['harnesses'], readOnly=True))
                 data, mime = json.dumps(listing).encode(), 'application/json'
             elif path.startswith('/api/jobs/'):
                 with manager.lock: job = manager.jobs.get(path.removeprefix('/api/jobs/'))
