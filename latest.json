@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "notes": "Introduces signed in-app updates. This is the one-time manual upgrade from 0.1.x; future published versions appear inside Skill-Desk.\n\n## Included\n\n- Updates button beside Print and a tray menu entry.\n- Native release notes, download progress, retry controls, and Update and restart.\n- Automatic checks at most once daily, with manual checks on demand.\n- Signature verification before installing any update.\n- Installation waits for active skill jobs, description generation, and outstanding previews.\n- Windows per-user installer, macOS application updates, and Linux AppImage updates.\n\nThe .deb remains available for package-manager installation. Use AppImage for in-app Linux updates. Your skills, preferences, and CLI sign-ins remain outside the app installation.\n\nUpdater signatures verify the update source. Operating-system publisher signing and macOS notarization are not configured, so publisher warnings may still appear for manual downloads.\n",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUa0pXQ0hiN1JWRmFGR1UveVhIYnFHSlhrWDZSNWNmUUREcGFjK21PWG9hVzJ1cURiektibXpZKytNVFpOY3g4Q1JkVkE5Q1g2aUx1dUJldi96TTdkc0ZnNE5MUXk3M3djPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MDA5MTU1CWZpbGU6U2tpbGwtRGVza18wLjIuMF94NjQtc2V0dXAuZXhlCkloc2tIalN6Ui9XZENjRjRwOE5DdVZpVCtrMDNHZkdaaStPU21JaUJzSHJzUmlyYmZVWDV1Yk5TZXIwVmVBWVF4Vmk0ZE8rMHBhekxpQjlQVUE2OUFRPT0K",
+      "url": "https://github.com/ldgraham92/skill-desk/releases/download/v0.2.0/Skill-Desk_0.2.0_x64-setup.exe"
+    },
+    "linux-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUa0pXQ0hiN1JWRll3QVZZYmNiYVF0U01ET1VHTi80OTN3dEswMUVDcXRCSGM2NXRLOENPeWRjOEJBbithck9McjI4MTl5K2xQT1pacE5QSGYrUXdaMDNSR2k0RFBSY1FZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MDA5MTc5CWZpbGU6U2tpbGwtRGVza18wLjIuMF9hbWQ2NC5BcHBJbWFnZQpnTWNOWG5YWTlSNE1MNjd2bHUrNnZtcFpWY1hsQmJvQU1tWlhKeFl3ejNuaGNiWnBtaThqd0lOODVmYnVNZExYMGpodjM0ZldUTDEyYnpRV1FINjlEdz09Cg==",
+      "url": "https://github.com/ldgraham92/skill-desk/releases/download/v0.2.0/Skill-Desk_0.2.0_amd64.AppImage"
+    },
+    "darwin-aarch64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUa0pXQ0hiN1JWRlFRVkVhTThhYjFLaFpseGhaZHNGSlh2ODRNMGFMYi9CZE00M2JmNVd2U2owUEg5OTBsTHBKenhoS254clVHM3R4WUlPMVMvdWF2ZndPN3UrVWtaMlFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MDA5MDQyCWZpbGU6U2tpbGwtRGVzay5hcHAudGFyLmd6Ckk5bkczYVB2WUxERFV5SkIzQjh4OHVXOWQzbUZXclJzWkZ5czZDc2NkQnk4b1lpWVgyVFcrMjRmREdWVk1JdjU1MmhoR2llL3RSWGJFOUZyRzdBU0RnPT0K",
+      "url": "https://github.com/ldgraham92/skill-desk/releases/download/v0.2.0/Skill-Desk_0.2.0_aarch64.app.tar.gz"
+    }
+  }
+}
