@@ -68,3 +68,9 @@ Curated and user-added skill libraries, a desktop library selector, signed insta
 ## License and attribution
 
 Skill-Desk is MIT licensed. See [LICENSE](LICENSE). The original bundled skill/reference material retains its separate copyright notice in [PSTACK-LICENSE.txt](PSTACK-LICENSE.txt). Imported third-party skills retain their own licenses.
+
+### Personal skill discovery
+
+The desktop scans `~/.agents/skills`, `~/.codex/skills`, and `~/.claude/skills`. `CODEX_HOME` and `CLAUDE_CONFIG_DIR` override the corresponding CLI configuration directories. On Windows, `~` means your user profile. Manage shows the scanned paths. Linked copies of the same skill appear once; separate copies with the same name remain separate. Missing optional folders are watched for creation.
+
+New skills install to the shared `.agents/skills` folder. Entries discovered in the other CLI folders are currently read-only in Manage. Project-local skills and plugin caches are not scanned. An explicit `--root` or `--library` keeps the standalone service limited to that selected library.

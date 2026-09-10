@@ -47,6 +47,14 @@ def validate(data):
     return data
 
 
+def discovery_roots(home=None):
+    home = home or Path.home()
+    candidates = [home/'.agents/skills',
+                  Path(os.environ.get('CODEX_HOME') or home/'.codex')/'skills',
+                  Path(os.environ.get('CLAUDE_CONFIG_DIR') or home/'.claude')/'skills']
+    return list(dict.fromkeys(p.expanduser().resolve() for p in candidates))
+
+
 def scan(root):
     result, errors = [], []
     if not root.is_dir():
@@ -97,8 +105,9 @@ def author(skill):
 
 
 class Catalog:
-    def __init__(self, root, cache=CACHE):
+    def __init__(self, root, cache=CACHE, roots=None):
         self.root, self.cache_path = root, cache
+        self.roots = list(dict.fromkeys([root] + list(roots or [])))
         self.lock = threading.RLock()
         self.refresh_lock = threading.RLock()
         self.updated = threading.Condition()
@@ -115,7 +124,7 @@ class Catalog:
 
     def snapshot(self):
         with self.lock:
-            return dict(skills=self.rows, status=self.status, errors=self.errors)
+            return dict(skills=self.rows, status=self.status, errors=self.errors, libraries=[dict(path=str(p), exists=p.is_dir()) for p in self.roots])
 
     def notify(self):
         with self.updated:
@@ -124,7 +133,21 @@ class Catalog:
 
     def refresh(self, generate=True, limit=None):
         with self.refresh_lock:
-            skills, errors = scan(self.root)
+            skills, errors, seen = [], [], set()
+            for root in self.roots:
+                if root != self.root and not root.exists(): continue
+                found, failures = scan(root)
+                errors.extend(failures)
+                for skill in found:
+                    canonical = str(Path(skill['folder']).resolve())
+                    if canonical in seen: continue
+                    seen.add(canonical)
+                    skill['library'] = str(root)
+                    skill['managed'] = root == self.root
+                    skill['claude'] = root == Path(os.environ.get('CLAUDE_CONFIG_DIR') or Path.home()/'.claude').expanduser().resolve()/'skills' or '.claude' in root.parts
+                    if root != self.root:
+                        skill['id'] = 'library-' + hashlib.sha256(str(root).encode()).hexdigest()[:16] + '--' + skill['id']
+                    skills.append(skill)
             pending, rows, files = [], [], {}
             active_keys = {s['folder'] + ':' + s['digest'] for s in skills}
             with self.lock:
@@ -135,7 +158,7 @@ class Catalog:
                 key = s['folder'] + ':' + s['digest']
                 try: guidance = validate(cache[key]) if key in cache else None
                 except (ValueError, TypeError): guidance = None
-                row = dict(id=s['id'], title=s['name'], category='Understand', summary=s['summary'],
+                row = dict(id=s['id'], library=s['library'], managed=s['managed'], title=s['name'], category='Understand', summary=s['summary'],
                            when=[], notice=['Description generation pending.'], steps=[], limits=[], related=[],
                            prompt='$' + s['name'] + ' ', output='', keywords='', source='Global skill',
                            adaptation='Read from ' + s['folder'], sourceUrl='/instructions/' + s['id'],
@@ -143,7 +166,7 @@ class Catalog:
                            invocationText='Request this skill directly.' if s['explicit'] else 'Codex may select this skill when relevant; you can also request it directly.')
                 if guidance: row.update(guidance)
                 else: pending.append((s, key))
-                if '.claude' in self.root.parts: row['prompt'] = row['prompt'].replace('$'+s['name'], '/'+s['name'])
+                if s['claude']: row['prompt'] = row['prompt'].replace('$'+s['name'], '/'+s['name'])
                 rows.append(row)
                 files[s['id']] = str(Path(s['folder']) / 'SKILL.md')
             with self.lock:
@@ -247,12 +270,16 @@ def serve(catalog, port, generate, manager=None):
             elif path == '/api/skills':
                 snapshot = catalog.snapshot()
                 with manager.lock:
-                    snapshot['skills'] = [dict(row, source=manager.registry.get(manager.key(row['id']), {}).get('kind', 'Existing')) for row in snapshot['skills']]
+                    snapshot['skills'] = [dict(row, source=manager.registry.get(manager.key(row['id']), {}).get('kind', 'Existing') if row['managed'] else 'Existing') for row in snapshot['skills']]
                 data, mime = json.dumps(snapshot).encode(), 'application/json'
             elif path == '/api/providers':
-                data, mime = json.dumps(dict(AUTHOR.snapshot(), root=str(catalog.root))).encode(), 'application/json'
+                data, mime = json.dumps(dict(AUTHOR.snapshot(), root=str(catalog.root), libraries=[str(p) for p in catalog.roots])).encode(), 'application/json'
             elif path == '/api/manage':
-                data, mime = json.dumps(manager.listing()).encode(), 'application/json'
+                listing = manager.listing()
+                for row in catalog.snapshot()['skills']:
+                    if not row['managed']:
+                        listing['installed'].append(dict(id=row['id'], name=row['title'], description=row['summary'], kind='Existing', source=row['library'], readOnly=True))
+                data, mime = json.dumps(listing).encode(), 'application/json'
             elif path.startswith('/api/jobs/'):
                 with manager.lock: job = manager.jobs.get(path.removeprefix('/api/jobs/'))
                 if not job: self.send_error(404); return
@@ -339,13 +366,19 @@ def serve(catalog, port, generate, manager=None):
     observer = Observer()
     observed = set()
     def update_watches():
-        targets = {catalog.root}
-        # Existing linked skill folders may live outside the library directory.
-        for folder in catalog.root.iterdir():
-            if folder.is_symlink() and folder.is_dir(): targets.add(folder.resolve())
-        for target in targets - observed:
-            observer.schedule(Changes(), str(target), recursive=True)
-            observed.add(target)
+        targets = set()
+        for root in catalog.roots:
+            if root.is_dir():
+                targets.add((root, True))
+                for folder in root.iterdir():
+                    if folder.is_symlink() and folder.is_dir(): targets.add((folder.resolve(), True))
+            # Watch only direct entries of ancestors so newly created libraries are found.
+            parent = root.parent
+            while not parent.is_dir() and parent != parent.parent: parent = parent.parent
+            targets.add((parent, False))
+        for target, recursive in targets - observed:
+            observer.schedule(Changes(), str(target), recursive=recursive)
+            observed.add((target, recursive))
     update_watches()
     observer.start()
     def watch():
@@ -372,7 +405,7 @@ def serve(catalog, port, generate, manager=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, default=os.environ.get('SKILL_DESK_ROOT'), help='Override the selected library directory')
-    parser.add_argument('--library', choices=['codex','claude'], default='codex')
+    parser.add_argument('--library', choices=['codex','claude'], default=None)
     parser.add_argument('--provider', choices=['codex','claude'], help='Authoring CLI; saved for future launches')
     parser.add_argument('--parent-pid', type=int, help='Desktop process to monitor for unexpected exits')
     parser.add_argument('--desktop', action='store_true', help='Exit when the desktop parent closes stdin')
@@ -406,9 +439,10 @@ def main():
     try: lock = lock_file(CACHE.parent / 'sync.lock')
     except RuntimeError as e: parser.exit(1, str(e)+'\n')
     if args.provider: AUTHOR.select(args.provider)
-    root = args.root or Path.home()/('.claude/skills' if args.library=='claude' else '.agents/skills')
+    roots = discovery_roots()
+    root = Path(args.root).expanduser().resolve() if args.root else (roots[-1] if args.library == 'claude' else roots[0])
     root.mkdir(parents=True, exist_ok=True)
-    catalog = Catalog(root.expanduser().resolve())
+    catalog = Catalog(root, roots=[root] if args.root or args.library else roots)
     if args.once:
         catalog.refresh(generate=not args.no_author, limit=args.limit)
         print(json.dumps(catalog.snapshot(), indent=2))
