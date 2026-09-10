@@ -32,8 +32,9 @@ class NearbyTests(unittest.TestCase):
         self.package=export_package([{'folder':folder,'harnesses':['codex']}])
         self.raw=base64.b64decode(self.package['data'])
         self.assertEqual(list(Path(self.receiver.temp.name).iterdir()), [])
-        self.sender.probe(f'127.0.0.1:{self.receiver.port}')
+        found=self.sender.probe(f'127.0.0.1:{self.receiver.port}')
         self.peer=next(iter(self.sender.peers))
+        self.assertEqual(found['selectedPeer'], self.peer)
 
     def wait(self, test, timeout=5):
         deadline=time.monotonic()+timeout

@@ -178,10 +178,22 @@ function exportPackageForm(){
 function importPackageForm(){
  showDialog(dialogHeader('Import skills package')+`<p>Choose a package exported by Skill-Desk. Review the instructions before installing. Existing skills are never overwritten.</p><label for="package-file">Package file · up to 100 MB</label><input id="package-file" type="file" accept=".zip,application/zip"><label for="package-target">Install into</label><select id="package-target"><option value="shared">Default skill library</option><option value="codex">Codex</option><option value="claude">Claude</option></select><p id="form-message" role="status"></p><button class="button primary" id="prepare-package">Preview package</button>`);
 }
+function isPackageDuplicate(skill){return /already exists|already installed|Installed from this package/.test(skill.conflict||'');}
 function previewPackage(result){
  activeDraft=result;
- showDialog(dialogHeader('Review package')+`<p>Destination: ${esc(result.destination||'Default library')}</p><p>Select the skills to install. Conflicts are skipped. Included scripts are copied, never executed by the import.</p><div class="package-list">${result.candidates.map(s=>`<article class="manage-row"><div><label class="checkbox-label"><input type="checkbox" name="package-candidate" value="${esc(s.candidate)}" ${s.conflict?'disabled':'checked'}> ${esc(s.name)}</label><p>${esc(s.description)}</p>${harnessBadges(s)}${s.conflict?`<p class="form-error">${esc(s.conflict)}</p>`:''}<details><summary>Review instructions and ${s.files.length} files</summary><ul>${s.files.map(f=>`<li>${esc(f)}</li>`).join('')}</ul><pre class="skill-preview">${esc(s.content)}</pre></details></div></article>`).join('')}</div><p id="form-message" role="status"></p><div class="manage-actions"><button class="button" id="discard-draft">Discard preview</button><button class="button primary" id="install-package">Install selected skills</button></div>`);
+ showDialog(dialogHeader('Review package')+`<p>Destination: ${esc(result.destination||'Default library')}</p><p>Select the skills to install. Skills with a conflict cannot be selected. Each blocked skill shows the reason below. Included scripts are copied, never executed by the import.</p>${result.candidates.some(isPackageDuplicate)?`<div class="package-conflicts"><label class="checkbox-label"><input type="checkbox" id="hide-package-duplicates"> Hide duplicates (${result.candidates.filter(isPackageDuplicate).length})</label><p id="package-conflict-summary" role="status"></p><p>Skill-Desk keeps the existing copy and does not overwrite it. To replace it, discard this preview, remove the existing skill in Manage (it is archived), then import the package again. For a separately managed skill, remove it through its source CLI first.</p></div>`:''}<div class="package-list" id="package-candidates">${result.candidates.map(s=>`<article class="manage-row" data-conflict="${isPackageDuplicate(s)}"><div><label class="checkbox-label"><input type="checkbox" name="package-candidate" value="${esc(s.candidate)}" ${s.conflict?'disabled':'checked'}> ${esc(s.name)}</label><p>${esc(s.description)}</p>${harnessBadges(s)}${s.conflict?`<p class="form-error">${esc(s.conflict)}</p>`:''}<details><summary>Review instructions and ${s.files.length} files</summary><ul>${s.files.map(f=>`<li>${esc(f)}</li>`).join('')}</ul><pre class="skill-preview">${esc(s.content)}</pre></details></div></article>`).join('')}</div><p id="form-message" role="status"></p><div class="manage-actions"><button class="button" id="discard-draft">Discard preview</button><button class="button primary" id="install-package">Install selected skills (0)</button></div>`);
+ updatePackageSelection();
 }
+function updatePackageSelection(){
+ const button=$('#install-package');if(!button)return;
+ const count=document.querySelectorAll('[name=package-candidate]:checked:not(:disabled)').length;
+ button.textContent=`Install selected skills (${count})`;button.disabled=packageInstalling||count===0;
+ const hidden=$('#hide-package-duplicates')?.checked||false;
+ const duplicates=document.querySelectorAll('#package-candidates [data-conflict="true"]');
+ duplicates.forEach(row=>row.hidden=hidden);
+ if($('#package-conflict-summary'))$('#package-conflict-summary').textContent=`${duplicates.length} duplicate skill${duplicates.length===1?"":"s"} ${hidden?"hidden":"shown"} and excluded from installation because a skill with that name is already installed. ${hidden?"Uncheck Hide duplicates to inspect each conflict.":"Each duplicate below shows where the conflict was found."}`;
+}
+modal.addEventListener('change',e=>{if(e.target.name==='package-candidate'||e.target.id==='hide-package-duplicates')updatePackageSelection();});
 document.addEventListener('click',async e=>{
  const b=e.target.closest('button');if(!b||!['export-package','import-package','package-select-all','package-select-none','prepare-export','prepare-package','install-package'].includes(b.id))return;
  try{
@@ -213,7 +225,7 @@ document.addEventListener('click',async e=>{
    if(failures.length){previewPackage(result);$('#form-message').textContent=`Installed ${installed}. ${failures.join(' ')}`;}
    else{await api('/api/discard',{draft:result.draft});activeDraft=null;modal.close();render();toast(`Installed ${installed} skills from package`);}
   }
- }catch(err){errorMessage(err.message);}finally{if(b.id==='install-package')packageInstalling=false;if(b.isConnected)b.disabled=false;}
+ }catch(err){errorMessage(err.message);}finally{if(b.id==='install-package'){packageInstalling=false;updatePackageSelection();}else if(b.isConnected)b.disabled=false;}
 });
 
 
@@ -238,7 +250,13 @@ async function openNearby(mode,exportId=null){
  }catch(error){nearbyView=null;errorMessage(error.message);}
 }
 function paintNearby(state){
- if(!nearbyView||!$('#nearby-message'))return;
+ if(!nearbyView)return;
+ if(['sent','received'].includes(state.phase)&&state.active){
+  nearbyView.state=state;
+  if(!nearbyView.completed){nearbyView.completed=true;showDialog(dialogHeader('Transfer successful')+`<div class="nearby-success"><h3>${state.phase==='sent'?'Package sent successfully':'Package received successfully'}</h3><p>${state.phase==='sent'?'The receiving device can now review and install the skills.':'Your package is ready. Review and select the skills before installing them.'}</p></div>${state.phase==='received'?`<label for="nearby-target">Install into</label><select id="nearby-target"><option value="shared">Default skill library</option><option value="codex">Codex</option><option value="claude">Claude</option></select><button class="button primary" id="nearby-preview">Review received package</button><p class="manage-note">Closing without reviewing discards the received package.</p>`:''}<p id="form-message" role="alert"></p><button class="button" id="nearby-stop">Close and stop sharing</button>`);}
+  return;
+ }
+ if(!$('#nearby-message')){if(!state.active&&$('#nearby-preview')){$('#nearby-preview').disabled=true;errorMessage('Sharing expired. Receive the package again to review it.');}return;}
  nearbyView.state=state;
  if(!state.active){$('#nearby-message').textContent='Sharing has stopped. Close this window and reopen Send or Receive to try again.';document.querySelectorAll('#nearby-send,#nearby-probe,#nearby-preview,#nearby-accept,#nearby-reject').forEach(b=>b.disabled=true);return;}
  $('#nearby-identity').innerHTML=`<p>Your device: <strong>${esc(state.alias)}</strong></p>${state.mode==='receive'?`<div class="nearby-codes"><div><small>Receiver PIN</small><strong>${esc(state.pin)}</strong></div><div><small>Security code · compare on sender</small><code>${esc(state.code)}</code></div></div><p class="manage-note">Address: ${state.addresses.map(esc).join(' or ')||'No local IPv4 address found. Connect to your local network.'}</p>`:''}`;
@@ -275,7 +293,13 @@ document.addEventListener('click',async e=>{
   if(b.id==='nearby-stop'){modal.close();return;}
   if(!nearbyView)return;
   const current=nearbyView;let state;
-  if(b.id==='nearby-probe')state=await api('/api/nearby-probe',{address:$('#nearby-address').value});
+  if(b.id==='nearby-probe'){
+   b.textContent='Finding device…';
+   state=await api('/api/nearby-probe',{address:$('#nearby-address').value});
+   if(nearbyView!==current)return;
+   paintNearby(state);
+   if(state.selectedPeer){$('#nearby-peer').value=state.selectedPeer;$('#nearby-peer').dispatchEvent(new Event('change',{bubbles:true}));$('#nearby-address').closest('details').open=false;$('#nearby-confirm').focus();}
+  }
   if(b.id==='nearby-send')state=await api('/api/nearby-send',{export:current.exportId,peer:$('#nearby-peer').value,pin:$('#nearby-pin').value,confirmed:$('#nearby-confirm').checked});
   if(b.id==='nearby-accept'||b.id==='nearby-reject')state=await api('/api/nearby-decide',{id:current.state?.incoming?.id,accept:b.id==='nearby-accept'});
   if(b.id==='nearby-preview'){
@@ -284,5 +308,5 @@ document.addEventListener('click',async e=>{
    nearbyView=null;clearTimeout(nearbyTimer);previewPackage(result);return;
   }
   if(nearbyView===current&&state)paintNearby(state);
- }catch(error){errorMessage(error.message);}finally{if(b.isConnected&&!['nearby-send','nearby-preview'].includes(b.id))b.disabled=false;else if(b.isConnected&&b.id==='nearby-preview')b.disabled=false;}
+ }catch(error){errorMessage(error.message);}finally{if(b.id==='nearby-probe'&&b.isConnected)b.textContent='Find device';if(b.isConnected&&!['nearby-send','nearby-preview'].includes(b.id))b.disabled=false;else if(b.isConnected&&b.id==='nearby-preview')b.disabled=false;}
 });

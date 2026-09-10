@@ -11,3 +11,5 @@
 .package-list{max-height:50vh;overflow:auto;margin:16px 0}.package-list .checkbox-label{display:flex;align-items:center;gap:8px;padding:8px 0}.package-list details{margin:8px 0}.package-list li{overflow-wrap:anywhere}
 
 .nearby-codes{display:flex;flex-wrap:wrap;gap:20px;padding:16px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}.nearby-codes small{display:block;margin-bottom:8px}.nearby-codes strong{font-size:28px;letter-spacing:5px}.nearby-codes code{font-size:17px;letter-spacing:1px}.nearby-offer{padding:16px;border:1px solid var(--accent);border-radius:10px;margin:16px 0}#nearby-progress{display:flex;gap:12px;align-items:center;margin:16px 0}#nearby-progress[hidden]{display:none}#nearby-progress progress{width:65%;accent-color:var(--accent)}#nearby-peer-code{overflow-wrap:anywhere}#nearby-review button,#nearby-probe,#nearby-send{margin-top:12px}
+
+#package-candidates [hidden]{display:none}.package-conflicts,.nearby-success{padding:16px;border:1px solid var(--line);border-radius:10px;background:var(--paper);margin:16px 0}.package-conflicts p{font-size:14px;line-height:1.5}.nearby-success h3{margin-top:0;color:var(--accent)}

@@ -310,7 +310,9 @@ class Session:
             info.update(fingerprint=fp,port=int(match[2]),protocol='https')
             self.add_peer(match[1],info,manual=True)
         finally: self.close_connection(conn)
-        return self.snapshot()
+        state = self.snapshot()
+        state['selectedPeer'] = next((peer['id'] for peer in state['peers'] if peer['ip'] == match[1] and peer['port'] == int(match[2]) and peer['fingerprint'] == fp), None)
+        return state
 
     def offer(self, handler, query):
         data=handler.body()

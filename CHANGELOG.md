@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.6
+
+- Show the selected skill count and disable installation when no skills are selected.
+- Hide duplicate package entries on request, explain why they are excluded, and describe how to resolve conflicts.
+- Select a receiver immediately after finding it by address.
+- Show transfer success dialogs with package review and a close-and-stop-sharing action.
+
 ## 0.2.5
 
 - Send skill packages directly to another Skill-Desk device on your local network, without another app or a hosted service.
