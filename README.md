@@ -35,6 +35,10 @@ The initial releases are unsigned previews. Windows/Linux graphical installation
 
 The desktop app currently manages `~/.agents/skills`. Authoring-provider selection does not change the installation directory. The development server supports `--library claude` for `~/.claude/skills`; a desktop library selector is planned.
 
+## Hosting the marketing site
+
+Deploy only `marketing/` as a static website. In Coolify, choose the Static build pack and set Base Directory to `/marketing`. See [marketing deployment instructions](docs/MARKETING.md). The repository root `index.html` is also a generated copy of the marketing page; the desktop template lives in `web/app.html` and contains no bundled skill entries.
+
 ## Development
 
 Skill-Desk uses Tauri, HTML/CSS/JavaScript, and a bundled Python service. See [DESKTOP.md](DESKTOP.md) for platform prerequisites and full build instructions.

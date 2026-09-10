@@ -51,3 +51,14 @@ function toast(){}
         self.assertLess(page.index('window.skillDeskTheme="light"'),page.index("const key='skill-desk-theme'"))
         self.assertIn('let saved=["example"]',page)
         self.assertIn('window.skillDeskTheme="dark"',live_html(theme='<script>').decode())
+
+
+class PublicContentTests(unittest.TestCase):
+    def test_public_root_is_marketing_and_desktop_has_no_seed_catalog(self):
+        marketing = (ROOT/'marketing/index.html').read_text(encoding='utf-8')
+        self.assertEqual((ROOT/'index.html').read_text(encoding='utf-8'), marketing)
+        self.assertNotIn('/api/skills', marketing)
+        template = (ROOT/'web/app.html').read_text(encoding='utf-8')
+        catalog = re.search(r'<script id="skill-data" type="application/json">(.*?)</script>', template, re.S)
+        self.assertEqual(json.loads(catalog.group(1)), [])
+        self.assertIn('/api/skills', live_html().decode())

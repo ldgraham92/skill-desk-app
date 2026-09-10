@@ -213,7 +213,7 @@ class Catalog:
 
 
 def live_html(token="", saved=None, theme="dark"):
-    page = (PROJECT / 'index.html').read_text(encoding='utf-8')
+    page = (PROJECT / 'web/app.html').read_text(encoding='utf-8')
     page = page.replace('<span>▤</span> Skill desk', '<svg aria-hidden="true" width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 5h16M4 10h11M4 15h16M4 20h11"/></svg> Skill-Desk')
     if saved is not None:
         page = re.sub(r"let saved=\[\];try\{.*?\}catch\{\}", lambda _: 'let saved='+json.dumps(saved).replace('<', '\\u003c')+';', page, count=1)
