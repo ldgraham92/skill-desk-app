@@ -13,6 +13,8 @@ import secrets
 from management import Manager
 from providers import AuthorProvider
 AUTHOR = AuthorProvider()
+from update_gate import UpdateGate
+UPDATE_GATE = UpdateGate()
 import subprocess
 import tempfile
 import threading
@@ -90,7 +92,7 @@ def scan(root):
 
 
 def generate_json(prompt, schema_data):
-    return AUTHOR(prompt, schema_data)
+    return UPDATE_GATE.author(AUTHOR, prompt, schema_data)
 
 
 def author(skill):
@@ -248,6 +250,7 @@ syncCatalog();const catalogEvents=new EventSource('/api/events');catalogEvents.o
 def serve(catalog, port, generate, manager=None):
     manager = manager or Manager(catalog.root, AUTHOR)
     token = secrets.token_urlsafe(32)
+    if '--desktop' in sys.argv: print('Skill-Desk control: '+token, flush=True)
     preferences_path = manager.state/'preferences.json'
     def read_saved():
         try:
@@ -319,6 +322,9 @@ def serve(catalog, port, generate, manager=None):
             self.send_header('Content-Length', str(len(data)))
             self.end_headers(); self.wfile.write(data)
         def do_POST(self):
+            with manager.lock:
+                self.handle_post()
+        def handle_post(self):
             try:
                 hosts = {f'127.0.0.1:{port}', f'localhost:{port}'}
                 if self.headers.get('Host') not in hosts or self.headers.get('Origin') not in {'http://' + h for h in hosts} or not secrets.compare_digest(self.headers.get('X-Skill-Desk-Token', ''), token):
@@ -331,6 +337,12 @@ def serve(catalog, port, generate, manager=None):
                 payload = json.loads(self.rfile.read(length))
                 if not isinstance(payload, dict): raise ValueError('Expected an object.')
                 action = urlsplit(self.path).path.removeprefix('/api/')
+                if action == 'update-prepare':
+                    self.json_reply(200, UPDATE_GATE.prepare(manager)); return
+                if action == 'update-resume':
+                    UPDATE_GATE.resume(); self.json_reply(200, {'ready': False}); return
+                with manager.lock:
+                    if UPDATE_GATE.pending: raise ValueError('Skill-Desk is installing an app update. Please wait for the restart.')
                 if action == 'preferences':
                     saved = payload.get('saved')
                     if not isinstance(saved, list) or len(saved)>10000 or not all(isinstance(x,str) and len(x)<=200 for x in saved): raise ValueError('Invalid favorites list.')

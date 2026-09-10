@@ -76,3 +76,7 @@ The desktop scans `~/.agents/skills`, `~/.codex/skills`, and `~/.claude/skills`.
 New skills install to the shared `.agents/skills` folder. Entries discovered in the other CLI folders are currently read-only in Manage. Project-local skills and plugin caches are not scanned. An explicit `--root` or `--library` keeps the standalone service limited to that selected library.
 
 Use the All / Codex / Claude selector beside search to filter the catalog, Manage, and printed guide. All shows harness labels. A skill installed in only one harness offers an install action for the other. The preview preserves the complete folder and requires a separate install click; existing destination names are never overwritten. Copies are independent, and harness-specific instructions may need editing.
+
+### App updates
+
+Use Updates beside Print or Check for updates in the tray menu. Review release notes, then choose Update and restart. Updates wait for active skill jobs and outstanding previews. Windows, macOS, and Linux AppImage builds support in-app updates; Debian packages use package-manager upgrades. See [update and release setup](docs/UPDATES.md).

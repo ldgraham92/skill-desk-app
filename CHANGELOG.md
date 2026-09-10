@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.0
+
+Introduce signed in-app updates, native progress and retry controls, a GitHub update feed, and Linux AppImage distribution. Active skill work completes before installation.
+
 ## 0.1.4
 
 Add harness filtering, harness labels, and previewed cross-harness copying with destination conflict checks.

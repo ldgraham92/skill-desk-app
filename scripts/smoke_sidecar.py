@@ -53,6 +53,17 @@ def main():
             assert snapshot['skills'][0]['id']=='smoke-test', snapshot
             assert b'caf\xc3\xa9' in get('/instructions/smoke-test')
             assert b'author-provider' in get('/manage.js')
+            def post(action):
+                request=urllib.request.Request(url+'/api/'+action,data=b'{}',headers={'Content-Type':'application/json','Origin':url,'X-Skill-Desk-Token':token})
+                with urllib.request.urlopen(request,timeout=5) as response:return json.load(response)
+            assert post('update-prepare')['ready'] is True
+            blocked=urllib.request.Request(url+'/api/provider',data=b'{"provider":"codex"}',headers={'Content-Type':'application/json','Origin':url,'X-Skill-Desk-Token':token})
+            try:
+                urllib.request.urlopen(blocked,timeout=5)
+                raise AssertionError('App update did not block new mutations')
+            except urllib.error.HTTPError as error: assert error.code==400
+            post('update-resume')
+
             children = psutil.Process(process.pid).children(recursive=True)
             print(f'Shipped service ready in {ready_elapsed:.2f}s; live file notification and UTF-8 passed.')
         finally:

@@ -26,7 +26,7 @@ jobs:
             bundles: app,dmg
           - os: ubuntu-22.04
             platform: linux
-            bundles: deb
+            bundles: deb,appimage
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -43,14 +43,21 @@ jobs:
           workspaces: src-tauri
       - name: Linux native dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libfuse2
       - run: python -m pip install -r requirements-build.txt
       - run: npm ci
       - run: python scripts/check_version.py
       - run: python -m unittest discover -s tests -v
       - run: python scripts/build_sidecar.py
       - run: python scripts/smoke_sidecar.py
-      - run: npm run desktop:build -- --ci --bundles ${{ matrix.bundles }}
+      - name: Build unsigned validation packages
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        run: npm run desktop:build -- --ci --bundles ${{ matrix.bundles }} --config src-tauri/unsigned.conf.json
+      - name: Build signed update packages
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: npm run desktop:build -- --ci --bundles ${{ matrix.bundles }}
       - name: Collect installers
         run: python scripts/collect_release.py
       - uses: actions/upload-artifact@v4
