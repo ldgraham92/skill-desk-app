@@ -39,11 +39,11 @@ function toast(){}
         subprocess.run(['node', '-e', program], check=True, timeout=15, capture_output=True)
 
     def test_served_and_portable_scripts_parse(self):
-        pages = [live_html().decode(), (ROOT/'marketing/index.html').read_text(), (ROOT/'desktop/updater.html').read_text()]
+        pages = [live_html().decode(), (ROOT/'marketing/index.html').read_text(encoding='utf-8'), (ROOT/'desktop/updater.html').read_text(encoding='utf-8')]
         for page in pages:
             for attrs, script in re.findall(r'<script([^>]*)>(.*?)</script>', page, re.S):
                 if 'application/json' in attrs or 'src=' in attrs: continue
-                subprocess.run(['node', '--check'], input=script, text=True, check=True, timeout=15, capture_output=True)
+                subprocess.run(['node', '--check'], input=script, text=True, encoding='utf-8', check=True, timeout=15, capture_output=True)
         subprocess.run([sys.executable, str(ROOT/'scripts/sync_ui_assets.py'), '--check'], check=True, timeout=15)
 
     def test_theme_is_injected_before_first_paint(self):

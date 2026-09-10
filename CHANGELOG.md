@@ -1,8 +1,12 @@
 # Changelog
 
-## 0.2.1
+## 0.2.2
 
 Add a dark default theme, remembered appearance, refined navigation, accessible focus and hover states, and reduced-motion support across the app and demo. Correct provider-specific prompt copying and quick-reference skill names. Refresh the demo’s cross-platform installation and updater information.
+
+## 0.2.1
+
+Not released. Windows CI caught a text-encoding error in the shared-theme build check.
 
 ## 0.2.0
 
