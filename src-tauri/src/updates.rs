@@ -8,9 +8,10 @@ pub struct Updates {
     status: Mutex<Value>,
     update: Mutex<Option<Update>>,
     working: AtomicBool,
+    opening: AtomicBool,
 }
 impl Default for Updates {
-    fn default() -> Self { Self { connection: Mutex::new((String::new(), String::new())), status: Mutex::new(json!({"phase":"idle"})), update: Mutex::new(None), working: AtomicBool::new(false) } }
+    fn default() -> Self { Self { connection: Mutex::new((String::new(), String::new())), status: Mutex::new(json!({"phase":"idle"})), update: Mutex::new(None), working: AtomicBool::new(false), opening: AtomicBool::new(false) } }
 }
 fn guard(window: &tauri::WebviewWindow) -> Result<(), String> {
     let url=window.url().map_err(|e|e.to_string())?;
@@ -30,12 +31,29 @@ fn status(app:&tauri::AppHandle,value:Value) {
     sync_button(app);
 }
 pub fn open(app:&tauri::AppHandle) {
-    if let Some(w)=app.get_webview_window("updater") { let _=w.show();let _=w.set_focus();return; }
-    let _=WebviewWindowBuilder::new(app,"updater",WebviewUrl::App("updater.html".into()))
-        .title("Skill-Desk updates").inner_size(540.0,510.0).resizable(false).build();
+    if app.state::<Updates>().opening.swap(true, Ordering::SeqCst) { return; }
+    let app = app.clone();
+    // WebView2 creation must not block a navigation or tray event callback.
+    // run_on_main_thread would still run inside the event loop; use a worker.
+    tauri::async_runtime::spawn_blocking(move || {
+        let result = open_window(&app);
+        app.state::<Updates>().opening.store(false, Ordering::SeqCst);
+        if let Err(error) = result {
+            status(&app, json!({"phase":"error","message":format!("Could not open the updater: {error}")}));
+            if let Some(main) = app.get_webview_window("main") {
+                let _ = main.eval("if(typeof toast==='function')toast('Could not open Updates. Please quit and reopen Skill-Desk, then retry.');");
+            }
+        }
+    });
+}
+fn open_window(app:&tauri::AppHandle) -> tauri::Result<()> {
+    if let Some(w)=app.get_webview_window("updater") { w.show()?;w.set_focus()?;return Ok(()); }
+    WebviewWindowBuilder::new(app,"updater",WebviewUrl::App("updater.html".into()))
+        .title("Skill-Desk updates").inner_size(540.0,510.0).resizable(false).build()?;
+    Ok(())
 }
 #[tauri::command]
-pub fn update_status(window:tauri::WebviewWindow,app:tauri::AppHandle)->Result<Value,String> {
+pub async fn update_status(window:tauri::WebviewWindow,app:tauri::AppHandle)->Result<Value,String> {
     guard(&window)?;
     let mut value=app.state::<Updates>().status.lock().unwrap().clone();
     value["currentVersion"]=json!(app.package_info().version.to_string());

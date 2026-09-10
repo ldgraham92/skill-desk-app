@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.3
+
+Move updater window creation off synchronous event callbacks to avoid Windows WebView2 deadlocks. Make status IPC asynchronous, report window creation failures, and exercise the actual Windows updater UI in CI before publishing.
+
 ## 0.2.2
 
 Add a dark default theme, remembered appearance, refined navigation, accessible focus and hover states, and reduced-motion support across the app and demo. Correct provider-specific prompt copying and quick-reference skill names. Refresh the demo’s cross-platform installation and updater information.
