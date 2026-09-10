@@ -183,7 +183,7 @@ function previewPackage(result){
  showDialog(dialogHeader('Review package')+`<p>Destination: ${esc(result.destination||'Default library')}</p><p>Select the skills to install. Conflicts are skipped. Included scripts are copied, never executed by the import.</p><div class="package-list">${result.candidates.map(s=>`<article class="manage-row"><div><label class="checkbox-label"><input type="checkbox" name="package-candidate" value="${esc(s.candidate)}" ${s.conflict?'disabled':'checked'}> ${esc(s.name)}</label><p>${esc(s.description)}</p>${harnessBadges(s)}${s.conflict?`<p class="form-error">${esc(s.conflict)}</p>`:''}<details><summary>Review instructions and ${s.files.length} files</summary><ul>${s.files.map(f=>`<li>${esc(f)}</li>`).join('')}</ul><pre class="skill-preview">${esc(s.content)}</pre></details></div></article>`).join('')}</div><p id="form-message" role="status"></p><div class="manage-actions"><button class="button" id="discard-draft">Discard preview</button><button class="button primary" id="install-package">Install selected skills</button></div>`);
 }
 document.addEventListener('click',async e=>{
- const b=e.target.closest('button');if(!b)return;
+ const b=e.target.closest('button');if(!b||!['export-package','import-package','package-select-all','package-select-none','prepare-export','prepare-package','install-package'].includes(b.id))return;
  try{
   if(b.id==='export-package'){if(packageInstalling){toast('Wait for the package installation to finish.');return;}exportPackageForm();return;}
   if(b.id==='import-package'){if(packageInstalling){toast('Wait for the package installation to finish.');return;}if(activeJob){showJobProgress();return;}if(activeDraft){previewDraft(activeDraft);return;}importPackageForm();return;}
