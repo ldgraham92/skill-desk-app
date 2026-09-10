@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4
+
+- Export selected skills as portable packages and import multiple skills with preview and conflict checks.
+- Preserve supporting files and invocation settings across devices without a hosted service.
+- Remove personal seed data from the app template and make the public root the marketing page.
+- Fix the marketing provider selection indicator and document source builds and website deployment.
+
 ## 0.2.3
 
 Move updater window creation off synchronous event callbacks to avoid Windows WebView2 deadlocks. Make status IPC asynchronous, report window creation failures, and exercise the actual Windows updater UI in CI before publishing.

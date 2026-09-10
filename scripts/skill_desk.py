@@ -11,6 +11,7 @@ import re
 import shutil
 import secrets
 from management import Manager
+from skill_packages import export_package, import_package
 from providers import AuthorProvider
 AUTHOR = AuthorProvider()
 from update_gate import UpdateGate
@@ -337,7 +338,8 @@ def serve(catalog, port, generate, manager=None):
                 if self.headers.get('Content-Type') != 'application/json':
                     self.json_reply(415, {'error': 'Expected JSON'}); return
                 length = int(self.headers.get('Content-Length', '0'))
-                if length <= 0 or length > 350000:
+                limit = 134_000_000 if urlsplit(self.path).path == '/api/package-preview' else 350000
+                if length <= 0 or length > limit:
                     self.json_reply(413, {'error': 'Request exceeds the size limit.'}); return
                 payload = json.loads(self.rfile.read(length))
                 if not isinstance(payload, dict): raise ValueError('Expected an object.')
@@ -366,6 +368,41 @@ def serve(catalog, port, generate, manager=None):
                     with manager.lock:
                         if manager.busy: raise ValueError('Wait for the current create/import job to finish before changing providers.')
                         result = AUTHOR.select(payload.get('provider'))
+                elif action == 'package-export':
+                    ids = payload.get('ids')
+                    if not isinstance(ids, list) or not ids or len(ids) > 500 or not all(isinstance(x, str) for x in ids) or len(set(ids)) != len(ids): raise ValueError('Select up to 500 unique skills.')
+                    entries = []
+                    with catalog.lock:
+                        for skill_id in ids:
+                            row = next((r for r in catalog.rows if r['id'] == skill_id), None)
+                            file = catalog.files.get(skill_id)
+                            if not row or not file: raise ValueError('A selected skill is unavailable. Refresh and retry.')
+                            entries.append(dict(folder=Path(file).parent, harnesses=row['harnesses']))
+                    package = export_package(entries)
+                    exports = getattr(manager, 'package_exports', {})
+                    exports.clear()  # Keep only the latest reviewed export in memory.
+                    export_id = secrets.token_hex(16)
+                    exports[export_id] = package
+                    manager.package_exports = exports
+                    result = {k: v for k, v in package.items() if k != 'data'}
+                    result['export'] = export_id
+                elif action == 'package-save':
+                    package = getattr(manager, 'package_exports', {}).get(payload.get('export'))
+                    if not package: raise ValueError('Export expired. Prepare it again.')
+                    import base64
+                    downloads = Path.home()/'Downloads'
+                    downloads.mkdir(parents=True, exist_ok=True)
+                    destination = downloads/('skills-'+time.strftime('%Y%m%d-%H%M%S')+'-'+secrets.token_hex(3)+'.skilldesk.zip')
+                    with destination.open('xb') as output: output.write(base64.b64decode(package['data']))
+                    manager.package_exports.clear()
+                    result = {'path': str(destination)}
+                elif action == 'package-preview':
+                    if manager.busy or len(manager.drafts) >= 20: raise ValueError('Finish the current job or discard previews first.')
+                    target = payload.get('target', 'shared')
+                    if target not in {'shared', 'codex', 'claude'}: raise ValueError('Choose an installation provider.')
+                    target_root = manager.root if target == 'shared' else Path(os.environ.get('CLAUDE_CONFIG_DIR' if target == 'claude' else 'CODEX_HOME') or Path.home()/('.claude' if target == 'claude' else '.codex')).expanduser().resolve()/'skills'
+                    result = import_package(manager, payload, target_root, discovery_roots()[:2] if target == 'codex' else [target_root])
+                    result['destination'] = str(target_root)
                 elif action == 'copy-preview':
                     with manager.lock:
                         if manager.busy or len(manager.drafts) >= 20: raise ValueError('Finish the current job or discard unused previews first.')

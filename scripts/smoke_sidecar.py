@@ -1,4 +1,5 @@
 """Exercise the shipped executable with isolated state, no AI calls or real skills."""
+import base64
 import json
 import os
 from pathlib import Path
@@ -59,9 +60,25 @@ def main():
             assert snapshot['skills'][0]['id']=='smoke-test', snapshot
             assert b'caf\xc3\xa9' in get('/instructions/smoke-test')
             assert b'author-provider' in get('/manage.js')
-            def post(action):
-                request=urllib.request.Request(url+'/api/'+action,data=b'{}',headers={'Content-Type':'application/json','Origin':url,'X-Skill-Desk-Token':token})
+            def post(action, payload=None):
+                request=urllib.request.Request(url+'/api/'+action,data=json.dumps(payload or {}).encode(),headers={'Content-Type':'application/json','Origin':url,'X-Skill-Desk-Token':token})
                 with urllib.request.urlopen(request,timeout=5) as response:return json.load(response)
+            exported = post('package-export', {'ids': ['smoke-test']})
+            assert 'data' not in exported and exported['manifest']['skills'][0]['name']=='smoke-test'
+            saved_package = Path(post('package-save', {'export': exported['export']})['path'])
+            try: package_data = base64.b64encode(saved_package.read_bytes()).decode('ascii')
+            finally: saved_package.unlink()
+            preview = post('package-preview', {'data': package_data, 'target': 'shared'})
+            assert preview['candidates'][0]['conflict']
+            post('discard', {'draft': preview['draft']})
+            skill.rename(Path(tmp)/'original-skill')
+            preview = post('package-preview', {'data': package_data, 'target': 'shared'})
+            assert not preview['candidates'][0]['conflict']
+            post('install', {'draft': preview['draft'], 'candidate': '0'})
+            post('discard', {'draft': preview['draft']})
+            assert (skill/'SKILL.md').read_bytes()==(Path(tmp)/'original-skill/SKILL.md').read_bytes()
+            assert json.loads(get('/api/manage'))['installed'][0]['kind']=='Package Imported'
+            print('Shipped service package export, save, conflict check and import passed.')
             assert post('update-prepare')['ready'] is True
             blocked=urllib.request.Request(url+'/api/provider',data=b'{"provider":"codex"}',headers={'Content-Type':'application/json','Origin':url,'X-Skill-Desk-Token':token})
             try:

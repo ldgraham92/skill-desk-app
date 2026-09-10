@@ -7,3 +7,5 @@
 .row-meta .tag{margin-top:6px}
 @media(max-width:760px){.topbar{flex-wrap:wrap}.searchwrap{flex-basis:100%}#skill-harness{flex:1}}
 @media print{#skill-harness,.harness-actions button{display:none}}
+
+.package-list{max-height:50vh;overflow:auto;margin:16px 0}.package-list .checkbox-label{display:flex;align-items:center;gap:8px;padding:8px 0}.package-list details{margin:8px 0}.package-list li{overflow-wrap:anywhere}

@@ -1,6 +1,6 @@
 [package]
 name = "skill-desk"
-version = "0.2.3"
+version = "0.2.4"
 description = "Your personal AI skills library"
 edition = "2021"
 license = "MIT"

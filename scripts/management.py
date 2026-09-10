@@ -17,7 +17,7 @@ import yaml
 from platform_support import data_dir, subprocess_options
 STATE = data_dir()
 NAME = re.compile(r'^[a-z0-9]+(?:-[a-z0-9]+)*$')
-KINDS = ['User Created', 'Repo Installed', 'Markdown Imported', 'Harness Copy', 'Existing']
+KINDS = ['User Created', 'Repo Installed', 'Markdown Imported', 'Harness Copy', 'Package Imported', 'Existing']
 
 
 def metadata(text):

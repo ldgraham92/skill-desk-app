@@ -12,6 +12,7 @@ Skill-Desk is a free, open-source desktop manager for personal AI skills. It kee
 - Browse and search globally installed skills, save favorites, and copy example prompts.
 - Create a skill from a brief, track progress, review its instructions, and install it.
 - Import pasted Markdown, an MD file, or a complete skill folder from GitHub.
+- [Export and import skill packages](docs/SKILL-PACKAGES.md) to move full skill folders between devices without hosting a service.
 - Track User Created, Repo Installed, Markdown Imported and Existing origins.
 - Archive removed skills and restore them with installation-conflict checks.
 - Refresh the library when skill files change.
