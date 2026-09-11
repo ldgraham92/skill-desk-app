@@ -23,6 +23,9 @@ function Wait-Control($window, $names) {
     throw ('Control did not render: ' + ($names -join ', '))
 }
 $main = Wait-Window 'Skill-Desk'
+$skipTour = Wait-Control $main @('Skip tour')
+$skipTour.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+Write-Output 'First-launch walkthrough rendered and was dismissed.'
 for ($attempt=1; $attempt -le 2; $attempt++) {
     $button = Wait-Control $main @('Updates', 'Update available')
     Write-Output "Attempt ${attempt}: opening Updates from the main webview"
