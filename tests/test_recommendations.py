@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from contextlib import closing
 import hashlib
 import json
 from pathlib import Path
@@ -47,13 +48,20 @@ class UsageTests(unittest.TestCase):
     def test_opencode_both_sqlite_formats_read_only(self):
         root=self.roots['opencode'];root.mkdir()
         path=root/'opencode.db'
-        with sqlite3.connect(path) as db:
+        with closing(sqlite3.connect(path)) as db:
             db.executescript('CREATE TABLE message(id TEXT,time_created INTEGER,data TEXT);CREATE TABLE part(message_id TEXT,data TEXT);CREATE TABLE session_message(type TEXT,time_created INTEGER,data TEXT);')
             db.executemany('INSERT INTO message VALUES(?,?,?)',[('u',self.now*1000,'{"role":"user"}'),('a',self.now*1000,'{"role":"assistant"}')])
             db.executemany('INSERT INTO part VALUES(?,?)',[('u','{"type":"text","text":"Help me write better regression tests"}'),('a','{"type":"text","text":"PRIVATE ASSISTANT"}'),('u','{"type":"tool","text":"PRIVATE TOOL"}'),('u','{"type":"text","synthetic":true,"text":"PRIVATE SYNTHETIC"}')])
             db.execute('INSERT INTO session_message VALUES(?,?,?)',('user',self.now*1000,'{"text":"Plan the architecture of this application"}'))
+            db.commit()
         digest=hashlib.sha256(path.read_bytes()).hexdigest()
-        sample=scan(['opencode'],30,self.roots,self.now)
+        connections=[];connect=sqlite3.connect
+        def capture(*args,**kwargs):
+            connection=connect(*args,**kwargs);connections.append(connection);return connection
+        with patch('usage_history.sqlite3.connect',side_effect=capture):
+            sample=scan(['opencode'],30,self.roots,self.now)
+        self.assertEqual(len(connections),1)
+        with self.assertRaises(sqlite3.ProgrammingError):connections[0].execute('SELECT 1')
         self.assertEqual(sample['sampled'],2);self.assertNotIn('PRIVATE',json.dumps(sample))
         self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(),digest)
 

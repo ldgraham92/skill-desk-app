@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import sqlite3
+from contextlib import closing
 import time
 
 LABELS = {'codex': 'Codex', 'claude': 'Claude Code', 'opencode': 'OpenCode'}
@@ -145,7 +146,7 @@ def scan(selected, days=30, locations=None, now=None):
             database=root/'opencode.db'
             if database.is_file() and not database.is_symlink():
                 try:
-                    with sqlite3.connect(database.resolve().as_uri()+'?mode=ro',uri=True,timeout=1) as db:
+                    with closing(sqlite3.connect(database.resolve().as_uri()+'?mode=ro',uri=True,timeout=1)) as db:
                         db.execute('PRAGMA query_only=ON')
                         deadline=time.monotonic()+3
                         db.set_progress_handler(lambda:int(time.monotonic()>deadline),1000)
