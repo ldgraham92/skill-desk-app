@@ -15,6 +15,7 @@ from urllib.parse import urlparse, unquote
 import yaml
 
 from platform_support import data_dir, subprocess_options
+from experience import Experience, tree_digest
 STATE = data_dir()
 NAME = re.compile(r'^[a-z0-9]+(?:-[a-z0-9]+)*$')
 KINDS = ['User Created', 'Repo Installed', 'Markdown Imported', 'Harness Copy', 'Package Imported', 'Existing']
@@ -95,6 +96,8 @@ class Manager:
         else: self.registry = {}
         self.lock = threading.RLock()
         self.jobs, self.drafts = {}, {}
+        self.experience=Experience(self.state)
+        self.undo_previews={}
         self.temporary = tempfile.TemporaryDirectory(prefix='skill-desk-drafts-')
         self.busy = False
 
@@ -126,18 +129,18 @@ class Manager:
                 except (OSError, ValueError): continue
             return dict(installed=installed, archived=archived, root=str(self.root))
 
-    def job(self, action, payload):
+    def job(self, action, payload, task=None):
         with self.lock:
             if self.busy: raise ValueError('Another create or import job is running. Wait for it to finish.')
             if len(self.drafts) >= 20: raise ValueError('Too many previews. Install or discard a preview before creating another.')
             self.busy = True
             token = uuid.uuid4().hex
-            self.jobs[token] = dict(status='running', phase='preparing', action=action, started_at=time.time(), message='Preparing skill-authoring guidance' if action == 'create' else 'Reading your import')
+            self.jobs[token] = dict(status='running', phase='preparing', action=action, started_at=time.time(), message='Preparing usage review' if action == 'recommend' else 'Preparing skill-authoring guidance' if action == 'create' else 'Reading your import')
         def progress(phase, message):
             with self.lock: self.jobs[token].update(phase=phase, message=message)
         def run():
             try:
-                result = self.create(payload, progress) if action == 'create' else self.prepare(payload, progress)
+                result = task(payload, progress) if task else self.create(payload, progress) if action == 'create' else self.prepare(payload, progress)
                 with self.lock: self.jobs[token].update(status='complete', phase='ready', message='Ready to review', result=result, finished_at=time.time())
             except Exception as e:
                 with self.lock: self.jobs[token].update(status='failed', phase='failed', message=str(e), finished_at=time.time())
@@ -263,21 +266,31 @@ class Manager:
             folder = draft['paths'][data['candidate']]
             details = validate_folder(folder)
             root = draft.get('target_root') or self.root
+            if draft.get('project_path'):
+                from projects import project_destination
+                if project_destination(draft['project_path'],draft['target_agent']) != root: raise ValueError('Project destination changed. Preview again.')
             conflict = self.conflict(details['name'], root, draft.get('conflict_roots'))
             if conflict: raise ValueError(conflict)
             root.mkdir(parents=True, exist_ok=True)
             destination = root/details['name']
             destination.mkdir()  # Exclusive creation prevents replacing an existing skill.
+            installation_record=None
             try:
                 shutil.copytree(folder, destination, dirs_exist_ok=True)
                 validate_folder(destination)
                 self.registry[str(destination)] = dict(kind=draft['kind'], source=draft['source'], created_at=datetime.now(timezone.utc).isoformat())
                 self.save()
+                agent=draft.get('target_agent') or ('claude' if '.claude' in root.parts or root == Path(os.environ.get('CLAUDE_CONFIG_DIR') or Path.home()/'.claude')/'skills' else 'codex')
+                installation_record=self.experience.record_install(dict(name=details['name'],root=str(root),resolved_root=str(root.resolve()),agent=agent,project_path=draft.get('project_path',''),source=draft['source'],kind=draft['kind'],digest=tree_digest(destination)))
+                self.registry[str(destination)]['installation_id']=installation_record['id']
+                self.save()
             except Exception:
                 shutil.rmtree(destination)
                 self.registry.pop(str(destination), None)
+                if installation_record:self.experience.update_install(installation_record['id'],status='failed')
+                self.save()
                 raise
-            return dict(installed=details['name'], root=str(root))
+            return dict(installed=details['name'], root=str(root), agent=draft.get('target_agent') or ('claude' if '.claude' in root.parts or root == Path(os.environ.get('CLAUDE_CONFIG_DIR') or Path.home()/'.claude')/'skills' else 'codex'))
 
     def discard(self, data):
         with self.lock:
@@ -329,3 +342,42 @@ class Manager:
                 raise
             (target/'record.json').unlink(); target.rmdir()
             return dict(restored=record['id'])
+
+    def undo_preview(self,data):
+        with self.lock:
+            record=self.experience.get_install(data.get('id'))
+            self._check_undo(record)
+            token=uuid.uuid4().hex;self.undo_previews={token:dict(id=record['id'],expires=time.time()+900)}
+            return dict(preview=token,name=record['name'],destination=str(Path(record['root'])/record['name']),source=record['source'])
+
+    def _check_undo(self,record):
+        if record['status']!='installed':raise ValueError('This installation was already undone.')
+        root=Path(record['root'])
+        if str(root.resolve())!=record['resolved_root']:raise ValueError('The installation location changed. Its files will be preserved.')
+        if record.get('project_path'):
+            from projects import project_destination
+            project_destination(record['project_path'],record['agent'])
+        folder=root/record['name']
+        if self.registry.get(str(folder),{}).get('installation_id')!=record['id']:raise ValueError('This installation is no longer the current copy. Its files will be preserved.')
+        if tree_digest(folder)!=record['digest']:raise ValueError('This skill has changed since installation. Undo is blocked to preserve your edits. Manage its files in the library.')
+        return folder
+
+    def undo_install(self,data):
+        with self.lock:
+            preview=self.undo_previews.get(data.get('preview'))
+            if not preview or preview['expires']<time.time():raise ValueError('Undo preview expired. Review the installation again.')
+            record=self.experience.get_install(preview['id']);folder=self._check_undo(record)
+            backup=self.state/'install-undo'/record['id'];backup.mkdir(parents=True,exist_ok=True)
+            if (backup/'skill').exists():raise ValueError('An undo backup already exists. Its files will be preserved.')
+            origin=self.registry.get(str(folder))
+            shutil.move(str(folder),str(backup/'skill'))
+            try:
+                if tree_digest(backup/'skill')!=record['digest']:raise ValueError('The skill changed during undo. Its files are preserved.')
+                self.registry.pop(str(folder),None);self.save()
+                self.experience.update_install(record['id'],status='undone',undone_at=time.time(),backup=str(backup/'skill'))
+            except Exception:
+                if not folder.exists():shutil.move(str(backup/'skill'),str(folder))
+                if origin:self.registry[str(folder)]=origin
+                self.save();raise
+            self.undo_previews.clear()
+            return dict(undone=record['name'],backup=str(backup/'skill'))

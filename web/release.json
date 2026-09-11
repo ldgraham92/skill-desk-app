@@ -1,0 +1,12 @@
+{
+  "version": "0.3.0",
+  "title": "Skills for your agents and projects",
+  "intro": "Choose where skills belong, find useful additions, and tell us what works for you.",
+  "items": [
+    {"title": "Give each project its own library", "description": "Onboard a local repository and choose Codex or Claude Code before installing.", "action": "projects", "label": "Explore projects"},
+    {"title": "Find skills that fit your work", "description": "Review your agent’s history, compare suggestions with skills you already have, and save or dismiss suggestions per project.", "action": "recommendations", "label": "Get recommendations"},
+    {"title": "Discover AI Hero and PStack", "description": "84 bundled skills, including nested folders, ready to review and install individually.", "action": "discover", "label": "Browse collections"},
+    {"title": "Try, review, and undo", "description": "Copy a first-step prompt after installation. Review installation history, rate usefulness, or undo an unchanged installation.", "action": "history", "label": "Installation history"},
+    {"title": "Help shape the next release", "description": "Check agent readiness and prepare a feedback report. Your report is shown before you choose to share it.", "action": "feedback", "label": "Send feedback"}
+  ]
+}

@@ -38,7 +38,11 @@ def main():
             def get(path):
                 with urllib.request.urlopen(url+path, timeout=5) as response: return response.read()
             page=get('/')
-            assert b'/manage.js' in page
+            assert b'/manage.js' in page and b'/experience.js' in page and b'/onboarding.js' in page
+            for asset in ['/experience.js','/workspace.js','/onboarding.js','/walkthrough/library.png','/walkthrough/first-step.png']:
+                assert get(asset), asset
+            assert json.loads(get('/api/release'))['version']=='0.3.0'
+            assert len(json.loads(get('/api/collections')))==2
             token=json.loads(re.search(rb'window.skillDeskToken=(.*?);',page).group(1))
             request=urllib.request.Request(url+'/api/preferences', data=json.dumps({'saved':['smoke-test']}).encode(), headers={'Content-Type':'application/json','Origin':url,'X-Skill-Desk-Token':token})
             with urllib.request.urlopen(request,timeout=5) as response: assert response.status==200
@@ -78,6 +82,29 @@ def main():
             post('discard', {'draft': preview['draft']})
             assert (skill/'SKILL.md').read_bytes()==(Path(tmp)/'original-skill/SKILL.md').read_bytes()
             assert json.loads(get('/api/manage'))['installed'][0]['kind']=='Package Imported'
+            history=json.loads(get('/api/installation-history'))
+            assert history[0]['name']=='smoke-test'
+            post('installation-rate',{'id':history[0]['id'],'rating':'useful','note':'Packaged service verification.'})
+            assert json.loads(get('/api/installation-history'))[0]['rating']=='useful'
+            undo=post('installation-undo-preview',{'id':history[0]['id']})
+            undone=post('installation-undo',{'preview':undo['preview']})
+            assert not skill.exists() and (Path(undone['backup'])/'SKILL.md').is_file()
+            # Restore the test fixture for the remaining existing smoke checks.
+            import shutil
+            shutil.copytree(Path(tmp)/'original-skill',skill)
+            repo=Path(tmp)/'project';repo.mkdir();(repo/'.git').mkdir()
+            project=post('project-add',{'path':str(repo),'name':'Smoke project'})
+            post('project-notes',{'id':project['id'],'notes':{'codex':'Test packaging','claude':'Test UI'}})
+            assert json.loads(get('/api/projects'))[0]['notes']['codex']=='Test packaging'
+            preview=post('collection-preview',{'collection':'ai-hero','names':['diagnosing-bugs'],'target':'codex','project':project['id']})
+            post('install',{'draft':preview['draft'],'candidate':'0'});post('discard',{'draft':preview['draft']})
+            assert (repo/'.agents/skills/diagnosing-bugs/SKILL.md').is_file()
+            post('project-remove',{'id':project['id']})
+            assert (repo/'.agents/skills/diagnosing-bugs/SKILL.md').is_file()
+            report=post('feedback-preview',{'kind':'Bug','title':'Smoke test','message':'Bundled feedback route works.','screen':'Smoke test'})
+            assert '0.3.0' in report['body']
+            post('preferences',{'walkthrough':1,'whatsNew':'0.3.0'})
+            assert json.loads(get('/api/preferences'))['whatsNew']=='0.3.0'
             print('Shipped service package export, save, conflict check and import passed.')
             assert post('update-prepare')['ready'] is True
             blocked=urllib.request.Request(url+'/api/provider',data=b'{"provider":"codex"}',headers={'Content-Type':'application/json','Origin':url,'X-Skill-Desk-Token':token})

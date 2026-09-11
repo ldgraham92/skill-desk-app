@@ -4,21 +4,16 @@ let manageData={installed:[],archived:[]}, activeDraft=null, activeJob=null, man
 const manageNav=document.createElement('button');manageNav.dataset.view='manage';manageNav.innerHTML='<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M7 4v6M4 17h16M16 14v6"/></svg>Manage skills';$('#mainnav').append(manageNav);
 const originalRender=render;
 render=function(){if(view==='manage'){renderManage();renderProviderControls();}else originalRender();};
-function renderManage(){
- document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
- document.querySelectorAll('[data-category]').forEach(b=>b.classList.remove('active'));
- const rows=manageData.installed.filter(s=>matchesHarness(s)&&(manageFilter==='All'||s.kind===manageFilter)&&query.toLowerCase().trim().split(/\s+/).every(t=>[s.name,s.description,s.kind,s.source].join(' ').toLowerCase().includes(t)));
- $('#content').innerHTML=`<div class="page manage-page"><div class="manage-heading"><div><span class="eyebrow">YOUR SKILL LIBRARY</span><h1>Manage skills</h1><p class="lead">Create a skill or bring one in. Available across projects in your selected local library.</p></div><div class="manage-actions"><button class="button" id="nearby-receive">Receive from device</button><button class="button" id="export-package">Export package</button><button class="button" id="import-package">Import package</button><button class="button" id="import-skill">Import skill</button><button class="button primary" id="create-skill">Create skill</button></div></div><div id="provider-controls"></div><div class="manage-filters">${['All','User Created','Repo Installed','Markdown Imported','Harness Copy','Package Imported','Existing'].map(k=>`<button class="button ${manageFilter===k?'primary':''}" data-origin="${k}">${k}</button>`).join('')}</div><p class="manage-note">${manageData.installed.length} installed · Removal archives the skill, so you can restore it later.</p><div class="manage-list">${rows.map(s=>`<article class="manage-row"><div><h2>${esc(s.name)}</h2><span class="tag">${esc(s.kind)}</span>${harnessBadges(s)}${s.linked?'<span class="tag">Linked folder</span>':''}<p>${esc(s.description)}</p><details><summary>Source</summary><p class="source-path">${esc(s.source)}</p></details>${s.error?`<p class="form-error">${esc(s.error)}</p>`:''}</div>${s.readOnly?'<span class="manage-note">Managed by its source CLI</span>':`<button class="button remove-button" data-remove="${esc(s.id)}">Remove</button>`}</article>`).join('')||'<p class="empty">No skills in this section yet.</p>'}</div><details class="archive-list"><summary>Removed skills (${manageData.archived.length})</summary>${manageData.archived.map(s=>`<div class="archive-row"><span>${esc(s.id)}<small>${esc(new Date(s.archived_at).toLocaleDateString())}</small></span><button class="button" data-restore="${esc(s.token)}">Restore</button></div>`).join('')}</details><p class="manage-note">Existing means installed outside Skill-Desk. New imports and creations have their source recorded automatically.</p></div>`;
-}
+function renderManage(){if(typeof renderManageWorkspace==='function')renderManageWorkspace();}
 const modal=document.createElement('dialog');modal.className='skill-dialog';modal.innerHTML='<div id="dialog-body"></div>';document.body.append(modal);
-function showDialog(body){$('#dialog-body').innerHTML=body;if(!modal.open)modal.showModal();}
+function showDialog(body){$('#dialog-body').innerHTML=body;if(typeof selectedProject==='function'&&selectedProject()){for(const id of ['package-target','nearby-target']){const select=$('#'+id);if(select){select.value=projectAgent;select.disabled=true;select.insertAdjacentHTML('afterend',`<p class="manage-note">Project: ${esc(selectedProject().name)}</p>`);}}}if(!modal.open)modal.showModal();}
 function errorMessage(message){const el=$('#form-message');if(el){el.textContent=message;el.className='form-error';}else toast(message);}
 function dialogHeader(title){return `<div class="dialog-heading"><h2>${title}</h2><button class="button" type="button" id="close-dialog" aria-label="Close dialog">Close</button></div>`;}
-async function api(path,body){const options=body===undefined?{signal:AbortSignal.timeout(15000)}:{method:'POST',headers:{'Content-Type':'application/json','X-Skill-Desk-Token':window.skillDeskToken},body:JSON.stringify(body)};const response=await fetch(path,options);const data=await response.json().catch(()=>({error:'Request failed'}));if(!response.ok){const error=Error(data.error||'Request failed');error.status=response.status;throw error;}return data;}
+async function api(path,body){if(body&&typeof projectSelection!=='undefined'&&projectSelection&&['/api/package-preview','/api/collection-preview','/api/nearby-preview','/api/create','/api/import','/api/copy-preview'].includes(path)&&!Object.hasOwn(body,'project'))body={...body,project:projectSelection,target:projectAgent};const options=body===undefined?{signal:AbortSignal.timeout(15000)}:{method:'POST',headers:{'Content-Type':'application/json','X-Skill-Desk-Token':window.skillDeskToken},body:JSON.stringify(body)};const response=await fetch(path,options);const data=await response.json().catch(()=>({error:'Request failed'}));if(!response.ok){const error=Error(data.error||'Request failed');error.status=response.status;throw error;}return data;}
 async function loadManage(){try{const next=await api('/api/manage');const signature=JSON.stringify(next);manageData=next;if(view==='manage'&&!modal.open&&signature!==lastManage)renderManage();lastManage=signature;renderProviderControls();}catch(e){if(view==='manage')toast(e.message);}}
 function createForm(){showDialog(dialogHeader('Create a skill')+`<form id="create-form"><label for="skill-brief">What should this skill help you do?</label><textarea id="skill-brief" required maxlength="30000" rows="9" placeholder="Describe the purpose, when to use it, the steps or rules that matter, and the result you want. Include an example request if useful."></textarea><label class="checkbox-label"><input type="checkbox" id="explicit-skill"> Only use when I explicitly request it</label><p class="manage-note">Uses your selected authoring CLI with the installed skill-authoring guidance. You can review the generated instructions before installing.</p><p id="form-message" role="status"></p><button class="button primary" type="submit">Generate preview</button></form>`);}
 function importForm(){showDialog(dialogHeader('Import a skill')+`<form id="import-form"><label for="import-mode">Import from</label><select id="import-mode"><option value="markdown">Markdown text or file</option><option value="github">GitHub repository</option></select><div id="markdown-fields"><label for="md-file">Markdown file</label><input type="file" id="md-file" accept=".md,.markdown,text/markdown,text/plain"><label for="md-content">Or paste Markdown</label><textarea id="md-content" rows="7" maxlength="200000" placeholder="Paste SKILL.md, including its YAML name and description."></textarea><details><summary>Ordinary Markdown without skill metadata?</summary><label for="md-name">Skill name</label><input id="md-name" placeholder="my-skill" maxlength="63"><label for="md-description">When should the agent use this skill?</label><input id="md-description" maxlength="1024"></details></div><div id="github-fields" hidden><label for="repo-url">GitHub URL</label><input type="url" id="repo-url" placeholder="https://github.com/owner/repository"><label for="repo-ref">Branch or tag <small>optional</small></label><input id="repo-ref" placeholder="Repository default"><label for="repo-path">Skill folder <small>optional</small></label><input id="repo-path" placeholder="skills/my-skill"><p class="manage-note">Repository imports preserve the complete skill folder, including references, scripts, licenses, and invocation settings. For branch names containing slashes, use the repository URL and enter the full branch here.</p></div><p id="form-message" role="status"></p><button class="button primary" type="submit">Preview import</button></form>`);}
-function previewDraft(result){if(result.package){previewPackage(result);return;}activeDraft=result;showDialog(dialogHeader('Review skill')+(result.targetHarness?`<p>Install a separate copy in ${harnessLabel(result.targetHarness)}. All included files are preserved. Review any harness-specific tools or instructions before using the copy.</p>`:'')+`<p><span class="tag">${esc(result.kind)}</span></p>${result.candidates.length>1?`<label for="candidate">Choose a skill to install</label><select id="candidate">${result.candidates.map(s=>`<option value="${esc(s.candidate)}">${esc(s.name)}</option>`).join('')}</select>`:''}<div id="candidate-preview"></div><p id="form-message" role="status"></p><div class="manage-actions"><button class="button" id="discard-draft">Discard preview</button><button class="button primary" id="install-draft">${result.targetHarness?'Install in '+harnessLabel(result.targetHarness):'Install globally'}</button></div>`);renderCandidate();}
+function previewDraft(result){if(result.package){previewPackage(result);return;}activeDraft=result;showDialog(dialogHeader('Review skill')+(result.destination?`<p>Destination: ${esc(result.destination)}</p>`:'')+(result.targetHarness?`<p>Install a separate copy in ${harnessLabel(result.targetHarness)}. All included files are preserved. Review any harness-specific tools or instructions before using the copy.</p>`:'')+`<p><span class="tag">${esc(result.kind)}</span></p>${result.candidates.length>1?`<label for="candidate">Choose a skill to install</label><select id="candidate">${result.candidates.map(s=>`<option value="${esc(s.candidate)}">${esc(s.name)}</option>`).join('')}</select>`:''}<div id="candidate-preview"></div><p id="form-message" role="status"></p><div class="manage-actions"><button class="button" id="discard-draft">Discard preview</button><button class="button primary" id="install-draft">${result.project?'Install in '+esc(result.project.name):result.targetHarness?'Install in '+harnessLabel(result.targetHarness):'Install in personal library'}</button></div>`);renderCandidate();}
 function selectedCandidate(){return activeDraft.candidates.find(x=>x.candidate===($('#candidate')?.value||activeDraft.candidates[0].candidate));}
 function renderCandidate(){const s=selectedCandidate();$('#candidate-preview').innerHTML=`<h3>${esc(s.name)}</h3><p>${esc(s.description)}</p><p class="manage-note">${esc(s.invocation)} · ${s.files.length} files</p><details><summary>Included files</summary><ul>${s.files.map(f=>`<li>${esc(f)}</li>`).join('')}</ul></details><pre class="skill-preview">${esc(s.content)}</pre>${s.conflict?`<p class="form-error">${esc(s.conflict)}</p>`:''}`;$('#install-draft').disabled=!!s.conflict;}
 let jobState=null, jobConnectionLost=false;
@@ -32,6 +27,7 @@ function elapsedJob(){
 function jobTitle(){return jobConnectionLost?'Connection interrupted':jobState?.message||'Preparing your skill';}
 function jobHint(){
  if(jobConnectionLost)return 'Retrying the status connection. The server may still be working.';
+ if(jobState?.action==='recommend')return jobState.status==='complete'?'Your recommendations are ready. Choose what to review.':jobState.status==='failed'?'The analysis did not finish. Your skills were not changed.':'Your agent is reviewing the excerpts you selected. You can keep browsing.';
  if(jobState?.status==='complete')return 'Your preview is ready. Review it before installing globally.';
  if(jobState?.status==='failed')return 'No skill was installed by this job. Dismiss this status to try again.';
  if(jobState?.phase==='generating')return 'Waiting for the authoring CLI to return the draft. This can take a few minutes.';
@@ -40,7 +36,7 @@ function jobHint(){
 function paintJob(){
  if(!jobState){jobBanner.hidden=true;return;}
  const running=jobState.status==='running';jobBanner.hidden=false;
- const label=jobState.status==='complete'?'Review skill':running?'View progress':'View error';
+ const label=jobState.status==='complete'?(jobState.action==='recommend'?'View recommendations':'Review skill'):running?'View progress':'View error';
  const markup=`<div class="job-status-main"><span class="job-indicator ${running?'is-running':''}" aria-hidden="true">${running?'':jobState.status==='complete'?'✓':'!'}</span><div><strong class="job-title" role="status">${esc(jobTitle())}</strong><p>${esc(jobHint())}</p></div></div><span class="job-elapsed">${elapsedJob()}</span><button class="button" id="view-skill-job">${label}</button>${jobState.status==='failed'?'<button class="button" id="dismiss-skill-job">Dismiss</button>':''}`;
  // Keep the controls in place so the timer does not disrupt focus or clicks.
  const signature=JSON.stringify([jobState.status,jobState.phase,jobState.message,jobConnectionLost]);
@@ -59,23 +55,26 @@ function paintJob(){
  }
 }
 function showJobProgress(){
+ if(jobState?.status==='complete'&&jobState.action==='recommend'){showRecommendationResult(jobState.result);return;}
  if(jobState?.status==='complete'&&activeDraft){previewDraft(activeDraft);return;}
- if(jobState?.status==='failed'){showDialog(dialogHeader('Could not prepare skill')+'<p id="form-message" role="alert"></p>');errorMessage(jobState.message);return;}
- const steps=jobState?.action==='import'?[['preparing','Read import'],['downloading','Fetch files'],['validating','Validate']]:[['preparing','Prepare'],['generating','Write with AI'],['validating','Validate']];
- showDialog(dialogHeader('Preparing your skill')+`<div id="job-progress"><div class="job-status-main"><span class="job-indicator is-running" aria-hidden="true"></span><h3 class="job-title" role="status"></h3></div><p class="job-hint"></p><p class="job-elapsed" aria-live="off"></p><ol class="job-stages">${steps.map(([id,label])=>`<li data-stage="${id}">${label}</li>`).join('')}</ol><p class="manage-note">Closing this dialog does not cancel the job. Its status stays above the page.</p></div>`);
+ if(jobState?.status==='failed'){showDialog(dialogHeader(jobState.action==='recommend'?'Could not review usage':'Could not prepare skill')+'<p id="form-message" role="alert"></p>');errorMessage(jobState.message);return;}
+ const steps=jobState?.action==='recommend'?[['preparing','Read sample'],['generating','Find matches'],['validating','Review results']]:jobState?.action==='import'?[['preparing','Read import'],['downloading','Fetch files'],['validating','Validate']]:[['preparing','Prepare'],['generating','Write with AI'],['validating','Validate']];
+ showDialog(dialogHeader(jobState?.action==='recommend'?'Finding skills for you':'Preparing your skill')+`<div id="job-progress"><div class="job-status-main"><span class="job-indicator is-running" aria-hidden="true"></span><h3 class="job-title" role="status"></h3></div><p class="job-hint"></p><p class="job-elapsed" aria-live="off"></p><ol class="job-stages">${steps.map(([id,label])=>`<li data-stage="${id}">${label}</li>`).join('')}</ol><p class="manage-note">Closing this dialog does not cancel the job. Its status stays above the page.</p></div>`);
  $('#close-dialog').textContent='Continue browsing';paintJob();
 }
 function clearJobStatus(){jobState=null;activeJob=null;jobConnectionLost=false;try{sessionStorage.removeItem('skill-desk-job');}catch{}paintJob();}
-async function waitForJob(id){
+async function waitForJob(id,action){
  activeJob=id;try{sessionStorage.setItem('skill-desk-job',id);}catch{}
- jobState={status:'running',phase:'preparing',started_at:Date.now()/1000,message:'Connecting to job status'};
+ jobState={action,status:'running',phase:'preparing',started_at:Date.now()/1000,message:'Connecting to job status'};
  showJobProgress();paintJob();
  while(activeJob===id){
   try{
    const job=await api('/api/jobs/'+id);const actionChanged=jobState.action!==job.action;jobConnectionLost=false;jobState=job;
    if(actionChanged&&job.status==='running'&&modal.open&&$('#job-progress'))showJobProgress();
    if(job.status==='complete'){
-    activeJob=null;activeDraft=job.result;const wasViewing=modal.open&&!!$('#job-progress');paintJob();
+    activeJob=null;const wasViewing=modal.open&&!!$('#job-progress');
+    if(job.action==='recommend'){recommendationResult=job.result;paintJob();if(wasViewing)showRecommendationResult(job.result);else toast('Your skill recommendations are ready');return;}
+    activeDraft=job.result;paintJob();
     if(wasViewing)previewDraft(job.result);else toast('Your skill is ready to review');return;
    }
    if(job.status==='failed'){activeJob=null;paintJob();if(modal.open&&$('#job-progress'))showJobProgress();return;}
@@ -87,7 +86,7 @@ async function waitForJob(id){
   await new Promise(r=>setTimeout(r,1500));
  }
 }
-async function startJob(action,payload){try{const data=await api('/api/'+action,payload);await waitForJob(data.job);}catch(e){errorMessage(e.message);}}
+async function startJob(action,payload){try{const data=await api('/api/'+action,payload);await waitForJob(data.job,action);}catch(e){errorMessage(e.message);}}
 modal.addEventListener('submit',async e=>{if(!['create-form','import-form'].includes(e.target.id))return;e.preventDefault();const button=e.target.querySelector('button[type="submit"]');button.disabled=true;
  try{if(e.target.id==='create-form')await startJob('create',{brief:$('#skill-brief').value,explicit:$('#explicit-skill').checked});
  else await startJob('import',{mode:$('#import-mode').value,content:$('#md-content').value,name:$('#md-name').value,description:$('#md-description').value,filename:$('#md-file').files[0]?.name,url:$('#repo-url').value,ref:$('#repo-ref').value,path:$('#repo-path').value});}
@@ -102,19 +101,19 @@ document.addEventListener('click',async e=>{const b=e.target.closest('button');i
  if(b.dataset.origin){manageFilter=b.dataset.origin;renderManage();}
  if(b.dataset.view==='manage')await loadManage();
  if(b.id==='discard-draft'){await api('/api/discard',{draft:activeDraft.draft});activeDraft=null;clearJobStatus();modal.close();}
- if(b.id==='install-draft'){b.disabled=true;const s=selectedCandidate();await api('/api/install',{draft:activeDraft.draft,candidate:s.candidate});await api('/api/discard',{draft:activeDraft.draft});activeDraft=null;clearJobStatus();modal.close();await loadManage();await syncCatalog();toast('Skill installed globally');}
+ if(b.id==='install-draft'){b.disabled=true;const s=selectedCandidate(),completedDraft=activeDraft;const installation=await api('/api/install',{draft:activeDraft.draft,candidate:s.candidate});completedDraft.target=installation.agent;await api('/api/discard',{draft:activeDraft.draft});activeDraft=null;clearJobStatus();modal.close();await loadManage();await syncCatalog();toast('Skill installed');showFirstSteps(completedDraft,[s.name]);}
  if(b.dataset.remove){const s=manageData.installed.find(x=>x.id===b.dataset.remove);showDialog(dialogHeader('Remove '+esc(s.name)+'?')+`<p>This removes the skill from global discovery and keeps an archived copy for restoration.${s.linked?' Only the link is moved; its target folder is preserved.':''}</p><p id="form-message" role="status"></p><button class="button primary" id="confirm-remove">Remove and archive</button>`);$('#confirm-remove').onclick=async()=>{try{await api('/api/archive',{id:s.id,fingerprint:s.fingerprint});modal.close();await loadManage();await syncCatalog();toast('Skill removed and archived');}catch(e){errorMessage(e.message);}};}
- if(b.dataset.restore){b.disabled=true;await api('/api/restore',{token:b.dataset.restore});await loadManage();await syncCatalog();toast('Skill restored');}
+ if(b.dataset.restore){b.disabled=true;await api('/api/restore',{token:b.dataset.restore});modal.close();await loadManage();await syncCatalog();toast('Skill restored');}
  }catch(e){errorMessage(e.message);b.disabled=false;}
 });
 loadManage();
 
 window.addEventListener('skilldesk-change',()=>{if(view==='manage')loadManage();});
-try{const job=sessionStorage.getItem('skill-desk-job');if(job)waitForJob(job);}catch{}
+window.addEventListener('DOMContentLoaded',()=>{try{const job=sessionStorage.getItem('skill-desk-job');if(job)waitForJob(job);}catch{}});
 
 function renderProviderControls(){
  const el=$('#provider-controls');if(!el||!providerData)return;
- el.innerHTML=`<label for="author-provider">Author with</label><select id="author-provider">${providerData.providers.map(p=>`<option value="${p.id}" ${p.id===providerData.selected?'selected':''} ${!p.installed?'disabled':''}>${p.label}${p.installed?'':' · CLI not installed'}</option>`).join('')}</select><p class="manage-note">Uses the selected CLI's existing login. Generation uses that provider account. Installed does not mean signed in.<br>New skills install to: <code>${esc(providerData.root)}</code><br>Scanned folders: ${(providerData.libraries||[providerData.root]).map(p=>`<code>${esc(p)}</code>`).join('<br>')}</p>`;
+ el.innerHTML=`<label for="author-provider">Author with</label><select id="author-provider">${providerData.providers.map(p=>`<option value="${p.id}" ${p.id===providerData.selected?'selected':''} ${!p.installed?'disabled':''}>${p.label}${p.installed?'':' · CLI not installed'}</option>`).join('')}</select><p class="manage-note">Uses the selected CLI's existing login. Generation uses that provider account. Installed does not mean signed in.</p><details class="library-paths"><summary>Library locations</summary><p>New skills install to: <code>${esc(providerData.root)}</code><br>Scanned folders: ${(providerData.libraries||[providerData.root]).map(p=>`<code>${esc(p)}</code>`).join('<br>')}</p></details>`;
 }
 async function loadProviders(){try{providerData=await api('/api/providers');renderProviderControls();}catch(e){toast(e.message);}}
 document.addEventListener('change',async e=>{if(e.target.id!=='author-provider')return;e.target.disabled=true;try{await api('/api/provider',{provider:e.target.value});await loadProviders();toast('Authoring provider updated');}catch(error){toast(error.message);renderProviderControls();}});
@@ -127,7 +126,7 @@ const harnessLabel=h=>h==='claude'?'Claude':'Codex';
 const harnessSelect=document.createElement('select');
 harnessSelect.id='skill-harness';harnessSelect.setAttribute('aria-label','Skill provider');
 harnessSelect.innerHTML='<option value="all">All providers</option><option value="codex">Codex</option><option value="claude">Claude</option>';
-harnessSelect.value=harnessFilter;$('#print').before(harnessSelect);
+harnessSelect.value=harnessFilter;$('.topbar [data-theme-toggle]').before(harnessSelect);
 const matchesHarness=s=>harnessFilter==='all'||(s.harnesses||[]).includes(harnessFilter);
 const originalFiltered=filtered;
 filtered=function(){return originalFiltered().filter(matchesHarness);};
@@ -141,7 +140,6 @@ detail=function(s){const display={...s,invocationText:(s.invocationText||'').rep
 const renderWithManagement=render;
 render=function(){
  renderWithManagement();
- $('#printguide').innerHTML='<h1>Skills · '+(harnessFilter==='all'?'All':harnessLabel(harnessFilter))+'</h1>'+skills.filter(matchesHarness).map(s=>`<article><h2>${esc(s.name||s.title)}</h2><p>${esc(s.summary)}</p><pre>${esc(skillPrompt(s))}</pre></article>`).join('');
  document.querySelectorAll('.skill-row').forEach(el=>{
   const s=skills.find(x=>x.id===el.dataset.skill);if(!s)return;
   el.querySelector('.row-name').textContent=s.name||s.title;
@@ -181,7 +179,7 @@ function importPackageForm(){
 function isPackageDuplicate(skill){return /already exists|already installed|Installed from this package/.test(skill.conflict||'');}
 function previewPackage(result){
  activeDraft=result;
- showDialog(dialogHeader('Review package')+`<p>Destination: ${esc(result.destination||'Default library')}</p><p>Select the skills to install. Skills with a conflict cannot be selected. Each blocked skill shows the reason below. Included scripts are copied, never executed by the import.</p>${result.candidates.some(isPackageDuplicate)?`<div class="package-conflicts"><label class="checkbox-label"><input type="checkbox" id="hide-package-duplicates"> Hide duplicates (${result.candidates.filter(isPackageDuplicate).length})</label><p id="package-conflict-summary" role="status"></p><p>Skill-Desk keeps the existing copy and does not overwrite it. To replace it, discard this preview, remove the existing skill in Manage (it is archived), then import the package again. For a separately managed skill, remove it through its source CLI first.</p></div>`:''}<div class="package-list" id="package-candidates">${result.candidates.map(s=>`<article class="manage-row" data-conflict="${isPackageDuplicate(s)}"><div><label class="checkbox-label"><input type="checkbox" name="package-candidate" value="${esc(s.candidate)}" ${s.conflict?'disabled':'checked'}> ${esc(s.name)}</label><p>${esc(s.description)}</p>${harnessBadges(s)}${s.conflict?`<p class="form-error">${esc(s.conflict)}</p>`:''}<details><summary>Review instructions and ${s.files.length} files</summary><ul>${s.files.map(f=>`<li>${esc(f)}</li>`).join('')}</ul><pre class="skill-preview">${esc(s.content)}</pre></details></div></article>`).join('')}</div><p id="form-message" role="status"></p><div class="manage-actions"><button class="button" id="discard-draft">Discard preview</button><button class="button primary" id="install-package">Install selected skills (0)</button></div>`);
+ showDialog(dialogHeader('Review skills')+`<p>Destination: ${esc(result.destination||'Default library')}</p><p>Select the skills to install. Skills with a conflict cannot be selected. Each blocked skill shows the reason below. Included scripts are copied, never executed by the import.</p>${result.candidates.some(isPackageDuplicate)?`<div class="package-conflicts"><label class="checkbox-label"><input type="checkbox" id="hide-package-duplicates"> Hide duplicates (${result.candidates.filter(isPackageDuplicate).length})</label><p id="package-conflict-summary" role="status"></p><p>Skill-Desk keeps the existing copy and does not overwrite it. To replace it, discard this preview, remove the existing skill in Manage (it is archived), then import the package again. For a separately managed skill, remove it through its source CLI first.</p></div>`:''}<div class="package-list" id="package-candidates">${result.candidates.map(s=>`<article class="manage-row" data-conflict="${isPackageDuplicate(s)}"><div><label class="checkbox-label"><input type="checkbox" name="package-candidate" value="${esc(s.candidate)}" ${s.conflict?'disabled':'checked'}> ${esc(s.name)}</label><p>${esc(s.description)}</p>${harnessBadges(s)}${s.conflict?`<p class="form-error">${esc(s.conflict)}</p>`:''}<details><summary>Review instructions and ${s.files.length} files</summary><ul>${s.files.map(f=>`<li>${esc(f)}</li>`).join('')}</ul><pre class="skill-preview">${esc(s.content)}</pre></details></div></article>`).join('')}</div><p id="form-message" role="status"></p><div class="manage-actions"><button class="button" id="discard-draft">Discard preview</button><button class="button primary" id="install-package">Install selected skills (0)</button></div>`);
  updatePackageSelection();
 }
 function updatePackageSelection(){
@@ -219,11 +217,11 @@ document.addEventListener('click',async e=>{
   if(b.id==='install-package'){
    const selected=Array.from(document.querySelectorAll('[name=package-candidate]:checked'),x=>x.value);
    if(!selected.length)throw Error('Select at least one skill without a conflict.');
-   b.disabled=true;packageInstalling=true;const result=activeDraft;let installed=0;const failures=[];
-   for(const candidate of selected){$('#form-message').textContent=`Installing ${installed+failures.length+1} of ${selected.length}…`;try{await api('/api/install',{draft:result.draft,candidate});installed++;const s=result.candidates.find(x=>x.candidate===candidate);s.conflict='Installed from this package.';}catch(err){failures.push(err.message);}}
+   b.disabled=true;packageInstalling=true;const result=activeDraft;let installed=0;const failures=[],installedNames=[];
+   for(const candidate of selected){$('#form-message').textContent=`Installing ${installed+failures.length+1} of ${selected.length}…`;try{const installation=await api('/api/install',{draft:result.draft,candidate});result.target=installation.agent;installed++;const s=result.candidates.find(x=>x.candidate===candidate);s.conflict='Installed from this package.';installedNames.push(s.name);}catch(err){failures.push(err.message);}}
    await loadManage();await syncCatalog();
    if(failures.length){previewPackage(result);$('#form-message').textContent=`Installed ${installed}. ${failures.join(' ')}`;}
-   else{await api('/api/discard',{draft:result.draft});activeDraft=null;modal.close();render();toast(`Installed ${installed} skills from package`);}
+   else{await api('/api/discard',{draft:result.draft});activeDraft=null;modal.close();render();toast(`Installed ${installed} skills from package`);showFirstSteps(result,installedNames);}
   }
  }catch(err){errorMessage(err.message);}finally{if(b.id==='install-package'){packageInstalling=false;updatePackageSelection();}else if(b.isConnected)b.disabled=false;}
 });
@@ -309,4 +307,19 @@ document.addEventListener('click',async e=>{
   }
   if(nearbyView===current&&state)paintNearby(state);
  }catch(error){errorMessage(error.message);}finally{if(b.id==='nearby-probe'&&b.isConnected)b.textContent='Find device';if(b.isConnected&&!['nearby-send','nearby-preview'].includes(b.id))b.disabled=false;else if(b.isConnected&&b.id==='nearby-preview')b.disabled=false;}
+});
+
+async function browseCollections(){
+ const collections=await api('/api/collections');
+ showDialog(dialogHeader('Skill collections')+`<p>Ready-to-install collections bundled with Skill-Desk. Preview the skills and choose what to install, or save a package to Downloads for another device.</p><label for="collection-target">Install into</label><select id="collection-target"><option value="shared">Default skill library</option><option value="codex">Codex</option><option value="claude">Claude</option></select><div class="collection-list">${collections.map(c=>`<article class="collection-row"><h3>${esc(c.name)} <span class="tag">${c.count} skills</span></h3><p>${esc(c.description)}</p><p class="manage-note">Bundled snapshot · ${esc(c.commit.slice(0,7))} · MIT license</p><details><summary>Included skills and source</summary><p><a href="${esc(c.url)}" target="_blank" rel="noopener">View source on GitHub</a></p><ul>${c.skills.map(s=>`<li>${esc(s.name)} <small class="muted">${esc(s.path)}</small></li>`).join('')}</ul>${c.adaptations.length?`<p>Packaging adjustments</p><ul>${c.adaptations.map(a=>`<li>${esc(a)}</li>`).join('')}</ul>`:''}</details><div class="manage-actions"><button class="button primary" data-preview-collection="${esc(c.id)}">Preview ${esc(c.name)}</button><button class="button" data-save-collection="${esc(c.id)}">Save package to Downloads</button></div></article>`).join('')}</div><p id="form-message" role="status"></p>`);
+}
+document.addEventListener('click',async e=>{
+ const b=e.target.closest('button');if(!b)return;
+ if(!['browse-collections'].includes(b.id)&&!b.dataset.previewCollection&&!b.dataset.saveCollection)return;
+ try{
+  b.disabled=true;
+  if(b.id==='browse-collections')await browseCollections();
+  else if(b.dataset.previewCollection){const target=$('#collection-target').value;previewPackage(await api('/api/collection-preview',{collection:b.dataset.previewCollection,target}));}
+  else{const result=await api('/api/collection-save',{collection:b.dataset.saveCollection});$('#form-message').textContent='Saved to '+result.path;}
+ }catch(error){errorMessage(error.message);}finally{if(b.isConnected)b.disabled=false;}
 });

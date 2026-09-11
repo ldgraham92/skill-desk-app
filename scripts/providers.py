@@ -42,7 +42,12 @@ class AuthorProvider:
         return self.snapshot()
 
     def __call__(self, prompt, schema_data):
-        name = self.name; cli = executable(name)
+        return self.generate(prompt, schema_data)
+
+    def generate(self, prompt, schema_data, provider=None, analysis=False):
+        name = provider or self.name
+        if name not in LABELS: raise ValueError('Choose Codex or Claude Code.')
+        cli = executable(name)
         if not cli: raise RuntimeError(f'{LABELS[name]} CLI was not found. Install it, sign in, then retry.')
         with tempfile.TemporaryDirectory(prefix='skill-desk-author-') as tmp:
             tmp = Path(tmp); output = tmp/'result.json'
@@ -55,14 +60,19 @@ class AuthorProvider:
                 for key in ['ANTHROPIC_API_KEY','ANTHROPIC_AUTH_TOKEN','CLAUDE_CODE_OAUTH_TOKEN','ANTHROPIC_BASE_URL','CLAUDE_CODE_USE_BEDROCK','CLAUDE_CODE_USE_VERTEX','CLAUDE_CODE_USE_FOUNDRY']:
                     env.pop(key,None)
                 cmd = command_prefix(cli) + ['--print','--output-format','json','--json-schema',json.dumps(schema_data),'--no-session-persistence','--tools','','--disallowedTools','mcp__*']
+            if analysis:
+                if name == 'codex':
+                    cmd += ['--ignore-user-config', '--disable', 'shell_tool', '--disable', 'apps', '--disable', 'plugins', '--disable', 'hooks', '--disable', 'multi_agent', '-c', 'web_search="disabled"', '-c', 'features.skip_host_skill_discovery=true']
+                else:
+                    cmd += ['--setting-sources', '', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--disable-slash-commands']
             run = subprocess.run(cmd,input=prompt,text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,cwd=tmp,env=env,timeout=300,encoding="utf-8",**subprocess_options())
-            if run.returncode: raise RuntimeError(f'{LABELS[name]} generation failed. Check CLI sign-in and usage limits. '+run.stderr[-1000:])
+            if run.returncode: raise RuntimeError(f'{LABELS[name]} generation failed. Check CLI sign-in and usage limits. '+('This analysis requires a current CLI with isolated configuration support.' if analysis else run.stderr[-1000:]))
             if name == 'codex':
                 if not output.exists(): raise ValueError('Codex did not return a structured result.')
                 result = json.loads(output.read_text(encoding='utf-8'))
             else:
                 envelope = json.loads(run.stdout)
-                if envelope.get('is_error'): raise RuntimeError('Claude Code could not complete generation: '+str(envelope.get('result','Unknown error'))[:1000])
+                if envelope.get('is_error'): raise RuntimeError('Claude Code could not complete generation. '+('Check CLI sign-in and usage limits, then retry.' if analysis else str(envelope.get('result','Unknown error'))[:1000]))
                 result = envelope.get('structured_output')
                 if not isinstance(result,dict): raise ValueError('Claude Code did not return structured_output. Update Claude Code and retry.')
             if not isinstance(result,dict): raise ValueError('Authoring returned an invalid JSON object.')

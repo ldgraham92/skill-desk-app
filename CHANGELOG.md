@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0
+
+- Reorganize Manage skills into Installed, Discover, and For you, with project and agent destinations.
+- Onboard local Git repositories and install reviewed skills into their Codex or Claude Code folders.
+- Bundle 37 AI Hero and 47 PStack skills with nested discovery, supporting files, licenses, and source attribution.
+- Recommend skills using the destination agent's own history, with editable previews, overlap comparisons, and first-step prompts.
+- Keep project notes, saved suggestions, and dismissals separate for each agent and project.
+- Record new installations, collect local usefulness assessments, and offer reviewed undo that preserves modified files and archives unchanged copies.
+- Add local agent readiness checks and editable feedback reports that open GitHub drafts without sending telemetry.
+- Add a five-step first-launch walkthrough with high-resolution screenshots and a release-specific What's new panel.
+- Show Update Ready in the sidebar and move printing to Print Cheatsheet in Quick reference.
+
 ## 0.2.6
 
 - Show the selected skill count and disable installation when no skills are selected.

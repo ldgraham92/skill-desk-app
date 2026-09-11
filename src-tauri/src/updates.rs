@@ -21,8 +21,7 @@ fn guard(window: &tauri::WebviewWindow) -> Result<(), String> {
 pub fn sync_button(app: &tauri::AppHandle) {
     let state=app.state::<Updates>().status.lock().unwrap().clone();
     if let Some(w)=app.get_webview_window("main") {
-        let label=if state["phase"]=="available" {"Update available"} else {"Updates"};
-        let code=format!(r#"(()=>{{const bar=document.querySelector('.topbar');if(!bar)return;let b=document.getElementById('app-updates');if(!b){{b=document.createElement('button');b.id='app-updates';b.className='button';b.onclick=()=>{{location.href='skilldesk://updates'}};bar.append(b);}}b.textContent={};}})()"#,serde_json::to_string(label).unwrap());
+        let code=include_str!("update_indicator.js").replace("__UPDATE_STATE__", &state.to_string());
         let _=w.eval(&code);
     }
 }

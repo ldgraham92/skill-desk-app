@@ -2,6 +2,8 @@
 
 The desktop's Updates button and tray menu open a native updater window. It checks the GitHub update feed at most once a day automatically and offers an explicit Check for updates button. Available releases show notes and an Update and restart action. The download is signature-verified before installation. Skill jobs and outstanding previews must finish before the service pauses mutations and the app restarts.
 
+When a release is available, an Update Ready button with a download icon appears at the bottom of the main sidebar. It opens the updater to review and install the release. The indicator also shows download and installation states, remains available after a failed retry, and disappears when a successful check reports that the app is current.
+
 Windows uses the per-user NSIS updater. macOS uses an application update archive. Linux users who want in-app updates should use AppImage; Debian packages remain managed by the system package manager. Publisher signing and macOS notarization are separate from the required updater signature.
 
 The app replaces its own binaries; skill directories, preferences, and CLI credentials are not installation targets. Cross-harness skill copies remain independent of app updates.

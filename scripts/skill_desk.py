@@ -13,6 +13,12 @@ import secrets
 from nearby import Nearby
 from management import Manager
 from skill_packages import export_package, import_package
+import bundled_collections
+from recommendations import Recommendations
+from projects import Projects, project_destination
+from experience import feedback_preview, VERSION
+from readiness import check_all
+from usage_history import sources as history_sources
 from providers import AuthorProvider
 AUTHOR = AuthorProvider()
 from update_gate import UpdateGate
@@ -231,13 +237,12 @@ def live_html(token="", saved=None, theme="dark"):
 ''' + page[end:]
     extra = '''<script>
 let lastCatalog='';
-document.querySelector('.subtitle').textContent='YOUR GLOBAL SKILLS';
+document.querySelector('.subtitle').textContent='YOUR SKILL LIBRARY';
 async function syncCatalog(){
  try {
   const response=await fetch('/api/skills',{cache:'no-store'}); if(!response.ok) throw Error('Sync unavailable');
   const data=await response.json(); const signature=JSON.stringify(data.skills);
-  if(signature!==lastCatalog){lastCatalog=signature; skills.splice(0,skills.length,...data.skills);render();
-   $('#printguide').innerHTML='<h1>Global skills</h1>'+skills.filter(s=>typeof matchesHarness==='undefined'||matchesHarness(s)).map(s=>`<article><h2>${esc(s.name||s.id)}</h2><p>${esc(s.summary)}</p><pre>${esc(skillPrompt(s))}</pre></article>`).join('');}
+  if(signature!==lastCatalog){lastCatalog=signature; skills.splice(0,skills.length,...data.skills);render();}
   const footer=document.querySelector('.sidebar footer');footer.textContent=data.status;
   if(data.errors.length){const details=document.createElement('details');const summary=document.createElement('summary');summary.textContent='Sync errors';details.append(summary);const text=document.createElement('pre');text.style.whiteSpace='pre-wrap';text.textContent=data.errors.join('\\n');details.append(text);footer.append(details);}
  }catch(e){document.querySelector('.sidebar footer').textContent='Server disconnected. Showing last loaded skills.';}
@@ -246,7 +251,7 @@ syncCatalog();const catalogEvents=new EventSource('/api/events');catalogEvents.o
 </script>'''
     page = page.replace('<!-- shared-theme:start -->', '<script>window.skillDeskTheme='+json.dumps(theme if theme in ('dark','light') else 'dark')+';</script><!-- shared-theme:start -->')
     page = page.replace('<!-- shared-theme:start -->', '<link rel="stylesheet" href="/manage.css"><!-- shared-theme:start -->')
-    extra += '<script>window.skillDeskToken=' + json.dumps(token) + ';</script><script src="/manage.js"></script>'
+    extra += '<script>window.skillDeskToken=' + json.dumps(token) + ';</script><script src="/manage.js"></script><script src="/workspace.js"></script><script src="/onboarding.js"></script><script src="/experience.js"></script>'
     return page.replace('</body>', extra + '</body>').encode()
 
 
@@ -255,6 +260,9 @@ def serve(catalog, port, generate, manager=None):
     manager.nearby = Nearby()
     token = secrets.token_urlsafe(32)
     if '--desktop' in sys.argv: print('Skill-Desk control: '+token, flush=True)
+    projects = Projects(manager.state)
+    global_roots = list(catalog.roots)
+    catalog.roots = list(dict.fromkeys(global_roots + projects.roots()))
     preferences_path = manager.state/'preferences.json'
     def read_preferences():
         try:
@@ -262,8 +270,9 @@ def serve(catalog, port, generate, manager=None):
             if not isinstance(value, dict): return {}
             saved = value.get('saved', [])
             return {'saved': saved if isinstance(saved, list) and all(isinstance(x,str) for x in saved) else [],
-                    'theme': 'light' if value.get('theme') == 'light' else 'dark'}
+                    'theme': 'light' if value.get('theme') == 'light' else 'dark', 'walkthrough': value.get('walkthrough') == 1, 'whatsNew': value.get('whatsNew','')}
         except (OSError, ValueError): return {}
+    recommendations = Recommendations(PROJECT, lambda name, prompt, schema: UPDATE_GATE.author(lambda p, s: AUTHOR.generate(p, s, provider=name, analysis=True), prompt, schema), experience=manager.experience)
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             if self.headers.get('Host') not in {f'127.0.0.1:{port}', f'localhost:{port}'}:
@@ -291,8 +300,18 @@ def serve(catalog, port, generate, manager=None):
             elif path == '/api/skills':
                 with manager.lock, catalog.lock:
                     snapshot = catalog.snapshot()
-                    snapshot['skills'] = [dict(row, source=manager.registry.get(str(Path(catalog.files[row['id']]).parent), {}).get('kind', 'Existing')) for row in snapshot['skills']]
+                    snapshot['skills'] = [dict(row, project=projects.scope(row['library']), source=manager.registry.get(str(Path(catalog.files[row['id']]).parent), {}).get('kind', 'Existing')) for row in snapshot['skills']]
                 data, mime = json.dumps(snapshot).encode(), 'application/json'
+            elif path == '/api/release':
+                data, mime = (PROJECT/'web/release.json').read_bytes(), 'application/json'
+            elif path == '/api/installation-history':
+                data, mime = json.dumps(manager.experience.history()).encode(), 'application/json'
+            elif path == '/api/recommendation-choices':
+                data, mime = json.dumps(manager.experience.data['choices']).encode(), 'application/json'
+            elif path == '/api/projects':
+                data, mime = json.dumps(projects.listing()).encode(), 'application/json'
+            elif path == '/api/preferences':
+                data, mime = json.dumps(read_preferences()).encode(), 'application/json'
             elif path == '/api/providers':
                 data, mime = json.dumps(dict(AUTHOR.snapshot(), root=str(catalog.root), libraries=[str(p) for p in catalog.roots])).encode(), 'application/json'
             elif path == '/api/manage':
@@ -301,16 +320,23 @@ def serve(catalog, port, generate, manager=None):
                     by_id = {row['id']: row for row in catalog.snapshot()['skills']}
                     for item in listing['installed']:
                         item['harnesses'] = by_id.get(item['id'], {}).get('harnesses', ['codex'])
+                        item['project'] = projects.scope(by_id.get(item['id'], {}).get('library', str(manager.root)))
                     for row in catalog.snapshot()['skills']:
                         if not row['managed']:
                             record = manager.registry.get(str(Path(catalog.files[row['id']]).parent), {})
-                            listing['installed'].append(dict(id=row['id'], name=row['name'], description=row['summary'], kind=record.get('kind', 'Existing'), source=record.get('source', row['library']), harnesses=row['harnesses'], readOnly=True))
+                            listing['installed'].append(dict(id=row['id'], name=row['name'], description=row['summary'], kind=record.get('kind', 'Existing'), source=record.get('source', row['library']), harnesses=row['harnesses'], project=projects.scope(row['library']), readOnly=True))
                 data, mime = json.dumps(listing).encode(), 'application/json'
+            elif path == '/api/usage-sources':
+                data, mime = json.dumps({'sources': history_sources(), **AUTHOR.snapshot()}).encode(), 'application/json'
+            elif path == '/api/collections':
+                data, mime = json.dumps(bundled_collections.catalog(PROJECT)).encode(), 'application/json'
             elif path.startswith('/api/jobs/'):
                 with manager.lock: job = manager.jobs.get(path.removeprefix('/api/jobs/'))
                 if not job: self.send_error(404); return
                 data, mime = json.dumps(job).encode(), 'application/json'
-            elif path in {'/manage.js', '/manage.css'}:
+            elif path in {'/walkthrough/'+name+'.png' for name in ('library','projects','discover','recommendations','first-step')}:
+                data, mime = (PROJECT/'web'/path.lstrip('/')).read_bytes(), 'image/png'
+            elif path in {'/manage.js', '/manage.css', '/workspace.js', '/onboarding.js', '/experience.js'}:
                 data = (PROJECT/'web'/path[1:]).read_bytes()
                 mime = 'text/javascript' if path.endswith('.js') else 'text/css'
             elif path.startswith('/instructions/'):
@@ -353,7 +379,38 @@ def serve(catalog, port, generate, manager=None):
                     UPDATE_GATE.resume(); self.json_reply(200, {'ready': False}); return
                 with manager.lock:
                     if UPDATE_GATE.pending: raise ValueError('Skill-Desk is installing an app update. Please wait for the restart.')
-                if action == 'preferences':
+                if action == 'readiness': result = {'agents':check_all()}
+                elif action == 'feedback-preview': result = feedback_preview(payload)
+                elif action == 'recommendation-choice':
+                    project=projects.get(payload['project']) if payload.get('project') else None
+                    skill=next((dict(id=c['id']+':'+s['name'],name=s['name'],collection=c['id']) for c in bundled_collections.catalog(PROJECT) for s in c['skills'] if c['id']+':'+s['name']==payload.get('skill')),None)
+                    if not skill:raise ValueError('Choose a skill from the bundled collections.')
+                    result=manager.experience.choose(payload,skill,(project or {}).get('id',''))
+                elif action == 'installation-rate': result=manager.experience.rate(payload)
+                elif action in {'installation-undo-preview','installation-undo'}:
+                    with manager.lock:
+                        if manager.busy or manager.drafts:raise ValueError('Finish the current job or preview before undoing an installation.')
+                        result=manager.undo_preview(payload) if action.endswith('preview') else manager.undo_install(payload)
+                    if action=='installation-undo':catalog.refresh(generate=False)
+                elif action == 'project-notes': result=projects.notes(payload)
+                elif action in {'project-add','project-remove'}:
+                    if manager.busy or manager.drafts: raise ValueError('Finish the current job or preview before changing projects.')
+                    result = projects.add(payload) if action=='project-add' else projects.remove(payload.get('id'))
+                    catalog.roots = list(dict.fromkeys(global_roots + projects.roots()))
+                    changed.set()
+                    catalog.refresh(generate=False)
+                elif action == 'usage-preview':
+                    project = projects.get(payload['project']) if payload.get('project') else None
+                    if project: project_destination(project['path'],payload.get('target'))
+                    result = recommendations.preview(dict(payload, project=project))
+                elif action == 'usage-discard':
+                    recommendations.previews.clear()
+                    result = {'discarded': True}
+                elif action == 'recommend':
+                    with catalog.lock: installed = [dict(name=r['name'], description=r['summary'], harnesses=list(r['harnesses']), project=projects.scope(r['library'])) for r in catalog.rows]
+                    request = recommendations.prepare(payload, installed)
+                    result = manager.job('recommend', request, recommendations.run)
+                elif action == 'preferences':
                     preferences = read_preferences()
                     if 'saved' in payload:
                         saved = payload['saved']
@@ -362,7 +419,13 @@ def serve(catalog, port, generate, manager=None):
                     if 'theme' in payload:
                         if payload['theme'] not in ('dark', 'light'): raise ValueError('Invalid theme.')
                         preferences['theme'] = payload['theme']
-                    if not payload or set(payload) - {'saved', 'theme'}: raise ValueError('Unknown preference.')
+                    if 'walkthrough' in payload:
+                        if payload['walkthrough'] != 1: raise ValueError('Invalid walkthrough version.')
+                        preferences['walkthrough'] = 1
+                    if 'whatsNew' in payload:
+                        if payload['whatsNew'] != VERSION:raise ValueError('Invalid release version.')
+                        preferences['whatsNew'] = VERSION
+                    if not payload or set(payload) - {'saved', 'theme', 'walkthrough', 'whatsNew'}: raise ValueError('Unknown preference.')
                     temp = preferences_path.with_suffix('.tmp')
                     temp.write_text(json.dumps(preferences), encoding='utf-8')
                     temp.replace(preferences_path)
@@ -403,29 +466,42 @@ def serve(catalog, port, generate, manager=None):
                     manager.package_exports = exports
                     result = {k: v for k, v in package.items() if k != 'data'}
                     result['export'] = export_id
-                elif action == 'package-save':
-                    package = getattr(manager, 'package_exports', {}).get(payload.get('export'))
+                elif action in {'package-save', 'collection-save'}:
+                    package = bundled_collections.package(PROJECT, payload.get('collection')) if action == 'collection-save' else getattr(manager, 'package_exports', {}).get(payload.get('export'))
                     if not package: raise ValueError('Export expired. Prepare it again.')
                     import base64
                     downloads = Path.home()/'Downloads'
                     downloads.mkdir(parents=True, exist_ok=True)
-                    destination = downloads/('skills-'+time.strftime('%Y%m%d-%H%M%S')+'-'+secrets.token_hex(3)+'.skilldesk.zip')
+                    destination = downloads/((package.get('filename', 'skills.skilldesk.zip').removesuffix('.skilldesk.zip'))+'-'+time.strftime('%Y%m%d-%H%M%S')+'-'+secrets.token_hex(3)+'.skilldesk.zip')
                     with destination.open('xb') as output: output.write(base64.b64decode(package['data']))
-                    manager.package_exports.clear()
+                    if action == 'package-save': manager.package_exports.clear()
                     result = {'path': str(destination)}
-                elif action in {'package-preview', 'nearby-preview'}:
+                elif action in {'package-preview', 'nearby-preview', 'collection-preview'}:
                     if manager.busy or len(manager.drafts) >= 20: raise ValueError('Finish the current job or discard previews first.')
                     target = payload.get('target', 'shared')
                     if target not in {'shared', 'codex', 'claude'}: raise ValueError('Choose an installation provider.')
                     target_root = manager.root if target == 'shared' else Path(os.environ.get('CLAUDE_CONFIG_DIR' if target == 'claude' else 'CODEX_HOME') or Path.home()/('.claude' if target == 'claude' else '.codex')).expanduser().resolve()/'skills'
+                    project = projects.get(payload['project']) if payload.get('project') else None
+                    if project: target_root = project_destination(project['path'],target)
+                    conflict_roots = [target_root] if project else discovery_roots()[:2] if target=='codex' else [target_root]
                     if action == 'nearby-preview':
                         import base64
                         received = manager.nearby.current().received
                         if received is None: raise ValueError('No completed package to review.')
                         payload = dict(payload, data=base64.b64encode(received).decode('ascii'))
-                    result = import_package(manager, payload, target_root, discovery_roots()[:2] if target == 'codex' else [target_root])
+                    if action == 'collection-preview':
+                        collection = bundled_collections.package(PROJECT, payload.get('collection'))
+                        payload = dict(payload, data=collection['data'])
+                    result = import_package(manager, payload, target_root, conflict_roots, selected_names=payload.get('names') if action == 'collection-preview' else None)
+                    if action == 'collection-preview':
+                        manager.drafts[result['draft']]['source'] = result['source'] = collection['source']
                     if action == 'nearby-preview': manager.nearby.stop()
+                    if project:
+                        manager.drafts[result['draft']]['project_path'] = project['path']
+                        manager.drafts[result['draft']]['target_agent'] = target
                     result['destination'] = str(target_root)
+                    result['target'] = target
+                    result['project'] = project
                 elif action == 'copy-preview':
                     with manager.lock:
                         if manager.busy or len(manager.drafts) >= 20: raise ValueError('Finish the current job or discard unused previews first.')
@@ -435,17 +511,36 @@ def serve(catalog, port, generate, manager=None):
                         row = next((r for r in catalog.rows if r['id'] == payload.get('id')), None)
                         file = catalog.files.get(payload.get('id'))
                     if not row or not file: raise ValueError('Skill no longer available. Refresh and retry.')
-                    if target in row['installedHarnesses']: raise ValueError('A skill with this name is already installed for that harness.')
+                    project = projects.get(payload['project']) if payload.get('project') else None
+                    if not project and target in row['installedHarnesses']: raise ValueError('A skill with this name is already installed for that harness.')
                     roots = discovery_roots()
                     target_root = Path(os.environ.get('CLAUDE_CONFIG_DIR') or Path.home()/'.claude').expanduser().resolve()/'skills' if target == 'claude' else Path(os.environ.get('CODEX_HOME') or Path.home()/'.codex').expanduser().resolve()/'skills'
-                    result = manager.stage([Path(file).parent.resolve()], 'Harness Copy', 'Copied from '+str(Path(file).parent), target_root=target_root, conflict_roots=roots[:2] if target == 'codex' else [target_root])
+                    if project: target_root = project_destination(project['path'],target)
+                    result = manager.stage([Path(file).parent.resolve()], 'Harness Copy', 'Copied from '+str(Path(file).parent), target_root=target_root, conflict_roots=[target_root] if project else roots[:2] if target == 'codex' else [target_root])
                     result['targetHarness'] = target
-                elif action in {'create', 'import'}: result = manager.job(action, payload)
+                    result.update(target=target,project=project,destination=str(target_root))
+                    if project: manager.drafts[result['draft']].update(project_path=project['path'],target_agent=target)
+                elif action in {'create', 'import'}:
+                    project = projects.get(payload['project']) if payload.get('project') else None
+                    if not project: result = manager.job(action, payload)
+                    else:
+                        target = payload.get('target')
+                        target_root = project_destination(project['path'],target)
+                        def project_job(data,progress):
+                            prepared = manager.create(data,progress) if action=='create' else manager.prepare(data,progress)
+                            with manager.lock:
+                                draft=manager.drafts[prepared['draft']]
+                                draft.update(target_root=target_root,conflict_roots=[target_root],project_path=project['path'],target_agent=target)
+                                for item in prepared['candidates']: item['conflict']=manager.conflict(item['name'],target_root,[target_root])
+                            return dict(prepared,target=target,project=project,destination=str(target_root))
+                        result = manager.job(action,payload,project_job)
                 elif action in {'install', 'discard', 'archive', 'restore'}:
                     result = getattr(manager, action)(payload)
                     if action == 'install' and result.get('root'):
                         destination_root = Path(result['root'])
                         if destination_root not in catalog.roots: catalog.roots.append(destination_root)
+                        changed.set()
+                        if not projects.scope(destination_root) and destination_root not in global_roots: global_roots.append(destination_root)
                     catalog.refresh(generate=False)
                 else:
                     self.json_reply(404, {'error': 'Unknown action'}); return
@@ -478,7 +573,7 @@ def serve(catalog, port, generate, manager=None):
             if event.event_type not in {'opened', 'closed_no_write', 'closed'}:
                 changed.set()
     observer = Observer()
-    observed = set()
+    observed = {}
     def update_watches():
         targets = set()
         for root in catalog.roots:
@@ -490,9 +585,10 @@ def serve(catalog, port, generate, manager=None):
             parent = root.parent
             while not parent.is_dir() and parent != parent.parent: parent = parent.parent
             targets.add((parent, False))
-        for target, recursive in targets - observed:
-            observer.schedule(Changes(), str(target), recursive=recursive)
-            observed.add((target, recursive))
+        for key in set(observed)-targets:
+            observer.unschedule(observed.pop(key))
+        for target, recursive in targets-set(observed):
+            observed[(target,recursive)]=observer.schedule(Changes(), str(target), recursive=recursive)
     update_watches()
     observer.start()
     def watch():

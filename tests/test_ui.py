@@ -44,7 +44,19 @@ function toast(){}
             for attrs, script in re.findall(r'<script([^>]*)>(.*?)</script>', page, re.S):
                 if 'application/json' in attrs or 'src=' in attrs: continue
                 subprocess.run(['node', '--check'], input=script, text=True, encoding='utf-8', check=True, timeout=15, capture_output=True)
+        for external in ['manage.js', 'workspace.js', 'onboarding.js', 'experience.js']:
+            subprocess.run(['node', '--check', str(ROOT/'web'/external)], check=True, timeout=15, capture_output=True)
         subprocess.run([sys.executable, str(ROOT/'scripts/sync_ui_assets.py'), '--check'], check=True, timeout=15)
+
+    def test_walkthrough_images_are_bundled_at_high_resolution(self):
+        import struct
+        for name in ['library','projects','discover','recommendations','first-step']:
+            content=(ROOT/'web/walkthrough'/f'{name}.png').read_bytes()
+            self.assertEqual(content[:8],b'\x89PNG\r\n\x1a\n')
+            width,height=struct.unpack('>II',content[16:24])
+            self.assertGreaterEqual(width,1500)
+            self.assertGreaterEqual(height,600)
+        self.assertIn('/onboarding.js',live_html().decode())
 
     def test_theme_is_injected_before_first_paint(self):
         page=live_html(saved=['example'], theme='light').decode()

@@ -61,7 +61,7 @@ def export_package(entries):
     return {'filename': 'skills.skilldesk.zip', 'data': base64.b64encode(data).decode('ascii'), 'manifest': manifest, 'bytes': len(data)}
 
 
-def import_package(manager, data, target_root=None, conflict_roots=None):
+def import_package(manager, data, target_root=None, conflict_roots=None, selected_names=None):
     try:
         raw = base64.b64decode(data.get('data', ''), validate=True)
     except (ValueError, TypeError): raise ValueError('Invalid package encoding.')
@@ -102,6 +102,12 @@ def import_package(manager, data, target_root=None, conflict_roots=None):
             if validate_folder(folder)['name'] != entry.get('name'): raise ValueError('Package skill name does not match its instructions.')
             folders.append(folder)
         if expected != {x.filename for x in infos}: raise ValueError('Package contains unlisted files.')
+        if selected_names is not None:
+            available = {entry['name'] for entry in entries}
+            if not isinstance(selected_names, list) or not selected_names or not all(isinstance(n, str) and n in available for n in selected_names) or len(set(selected_names)) != len(selected_names):
+                raise ValueError('Choose valid skills from this collection.')
+            pairs = [(folder, entry) for folder, entry in zip(folders, entries) if entry['name'] in selected_names]
+            folders, entries = map(list, zip(*pairs))
         result = manager.stage(folders, 'Package Imported', 'Imported Skill-Desk package', target_root=target_root, conflict_roots=conflict_roots)
         result['package'] = True
         seen = set()

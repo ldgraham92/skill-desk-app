@@ -9,4 +9,4 @@
 
 All 0.x tags and tags containing a hyphen are published as prereleases. A failed platform prevents publication. Do not move a published tag or silently replace an installer; use a new version for fixes. The publication script refuses to overwrite an existing release. If publication was interrupted, inspect any draft and uploaded assets before recovering it through GitHub.
 
-Installers are not code-signed yet. Release publication is not automatic updating inside the app. Signing credentials and an updater need a separate setup.
+Updater packages are signed in CI with the repository signing key, and the update feed advances only after all platform builds and publication succeed. Windows publisher signing and macOS notarization are not configured. See [App updates](UPDATES.md).

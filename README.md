@@ -21,6 +21,10 @@ Skill-Desk is a free, open-source desktop manager for personal AI skills. It kee
 
 The desktop window and bundled local service start together. The tray menu opens or hides the window. Closing the window or choosing Quit stops the service. Installed skills remain available to their agents when Skill-Desk is closed.
 
+## New in 0.3
+
+Onboard project repositories, browse AI Hero and PStack, and get recommendations from the agent you install skills for. Review overlap with your existing skills, save or dismiss suggestions, and copy a first step after installation. Installation history offers edit-aware undo and local usefulness assessments. A walkthrough, What's new panel, readiness checks, and reviewed GitHub feedback drafts help you get started and report issues. See the [skills and projects guide](docs/SKILL-PACKAGES.md).
+
 ## Install
 
 Choose the appropriate asset from [Releases](https://github.com/ldgraham92/skill-desk/releases):
@@ -76,7 +80,7 @@ Build a distributable installer with `npm run desktop:build`. The [Actions workf
 
 ## Roadmap
 
-Curated and user-added skill libraries, a desktop library selector, signed installers, app updates, and reusable integration boundaries for other tools. These are planned features, not capabilities of the first release.
+Next: repository-filtered history samples, broader agent integrations, and OS publisher signing. Version 0.3 includes bundled collections, project libraries, recommendations, installation history, and app updates.
 
 ## License and attribution
 
@@ -92,4 +96,4 @@ Use the All / Codex / Claude selector beside search to filter the catalog, Manag
 
 ### App updates
 
-Use Updates beside Print or Check for updates in the tray menu. Review release notes, then choose Update and restart. Updates wait for active skill jobs and outstanding previews. Windows, macOS, and Linux AppImage builds support in-app updates; Debian packages use package-manager upgrades. See [update and release setup](docs/UPDATES.md).
+Use Update Ready in the sidebar, Updates, or Check for updates in the tray menu. Review release notes, then choose Update and restart. Updates wait for active skill jobs and outstanding previews. Windows, macOS, and Linux AppImage builds support in-app updates; Debian packages use package-manager upgrades. See [update and release setup](docs/UPDATES.md).
