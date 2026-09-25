@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -79,9 +80,25 @@ def main():
         try:
             subprocess.run([str(old), '/S', '/D='+str(app)], check=True, timeout=180)
             smoke_helper(app, root, state, '0.3.0')
-            subprocess.run([str(installers[0]), '/S', '/D='+str(app)], check=True, timeout=180)
+            old_hash = hashlib.sha256((app/'Skill-Desk.exe').read_bytes()).hexdigest()
+            # Use the updater plugin's NSIS update mode, preserving app data and shortcuts.
+            subprocess.run([str(installers[0]), '/S', '/UPDATE', '/D='+str(app)], check=True, timeout=180)
             expected = ROOT/'src-tauri/target/release/Skill-Desk.exe'
-            assert (app/'Skill-Desk.exe').read_bytes() == expected.read_bytes()
+            expected_hash = hashlib.sha256(expected.read_bytes()).hexdigest()
+            # The installer launcher may return while a child finishes replacing files.
+            deadline = time.monotonic()+60
+            actual_hash = None
+            while time.monotonic() < deadline:
+                try:
+                    actual_hash = hashlib.sha256((app/'Skill-Desk.exe').read_bytes()).hexdigest()
+                except OSError:
+                    pass
+                if actual_hash == expected_hash:
+                    break
+                time.sleep(.5)
+            assert actual_hash == expected_hash, json.dumps(dict(
+                installer=installers[0].name, oldHash=old_hash,
+                expectedHash=expected_hash, installedHash=actual_hash))
             smoke_helper(app, root, state, version)
             assert all(p.read_bytes() == value for p, value in preserved.items())
             print(json.dumps(dict(fromVersion='0.3.0', toVersion=version,
