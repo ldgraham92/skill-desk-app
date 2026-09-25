@@ -3,7 +3,7 @@ import json,sys,tempfile,time,unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parent.parent/'scripts'))
-from experience import Experience,feedback_preview,tree_digest
+from experience import Experience,feedback_preview,tree_digest,VERSION
 from management import Manager
 from projects import Projects
 from readiness import check_agent
@@ -49,7 +49,7 @@ class ExperienceTests(unittest.TestCase):
   store.choose(dict(agent='codex',status='reset'),skill,'project-a');self.assertEqual(store.choices('codex','project-a'),[])
  def test_feedback_preview_is_bounded_and_only_contains_explicit_details(self):
   preview=feedback_preview(dict(kind='Bug',title='A control is confusing',message='I could not find the next step.',screen='Manage skills / For you'))
-  self.assertIn('0.3.0',preview['body']);self.assertIn('I could not find',preview['body']);self.assertNotIn(str(Path.home()),preview['body'])
+  self.assertIn(VERSION,preview['body']);self.assertIn('I could not find',preview['body']);self.assertNotIn(str(Path.home()),preview['body'])
   with self.assertRaises(ValueError):feedback_preview(dict(kind='Bug',title='',message='Missing title'))
  def test_project_notes_stay_separate_and_persist(self):
   repo=self.root/'repo';repo.mkdir();(repo/'.git').mkdir();projects=Projects(self.root/'state');p=projects.add(dict(path=str(repo)))

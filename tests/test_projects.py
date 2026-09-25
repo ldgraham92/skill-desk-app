@@ -26,12 +26,12 @@ class ProjectTests(unittest.TestCase):
  def test_project_installs_to_agent_path_and_rechecks_destination(self):
   manager=Manager(self.root/'personal',None,self.root/'state');self.addCleanup(manager.temporary.cleanup)
   folder=self.root/'source';folder.mkdir();(folder/'SKILL.md').write_text('---\nname: example\ndescription: Test project installs.\n---\nDo the work.')
-  for agent in ['codex','claude']:
+  for agent in ['codex','claude','opencode','cursor']:
    destination=project_destination(self.repo,agent)
    draft=manager.stage([folder],'Package Imported','Fixture',destination,[destination]);manager.drafts[draft['draft']].update(project_path=str(self.repo),target_agent=agent)
    result=manager.install(dict(draft=draft['draft'],candidate='0'))
    self.assertTrue((destination/'example/SKILL.md').is_file());self.assertEqual(result['root'],str(destination))
-   with self.assertRaises(ValueError):manager.install(dict(draft=draft['draft'],candidate='0'))
+   self.assertTrue(manager.install(dict(draft=draft['draft'],candidate='0'))['alreadyInstalled'])
   folder2=self.root/'source2';folder2.mkdir();(folder2/'SKILL.md').write_text('---\nname: second\ndescription: Test a moved project.\n---\nDo the work.')
   draft=manager.stage([folder2],'Package Imported','Fixture',self.repo/'.agents/skills',[self.repo/'.agents/skills']);manager.drafts[draft['draft']].update(project_path=str(self.repo),target_agent='codex')
   (self.repo/'.git').rmdir()

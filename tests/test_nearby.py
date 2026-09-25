@@ -137,6 +137,15 @@ class NearbyTests(unittest.TestCase):
         with self.assertRaises(OSError):socket.create_connection(('127.0.0.1',port),timeout=.2)
         self.assertFalse(Path(self.receiver.temp.name).exists())
 
+    def test_failed_checksum_can_be_retried_without_restarting(self):
+        route=self.accepted_offer('0'*64)
+        self.assertEqual(self.request(route,self.raw)[0],422)
+        self.assertIsNone(self.receiver.received)
+        route=self.accepted_offer()
+        self.assertEqual(self.request(route,self.raw)[0],200)
+        self.assertEqual(self.receiver.received,self.raw)
+        self.assertEqual(self.request(route,self.raw)[0],403)
+
     def test_idle_expiry_and_update_gate(self):
         class Active:
             active=True

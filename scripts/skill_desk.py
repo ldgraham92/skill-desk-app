@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Read global skills, author cached guidance with Codex, and serve Skill-Desk."""
+from agents import LABELS as AGENT_LABELS, personal_root, native_agent, compatible_agents
 import argparse
 import sys
 from platform_support import cache_dir, lock_file
@@ -20,6 +21,7 @@ from experience import feedback_preview, VERSION
 from readiness import check_all
 from usage_history import sources as history_sources
 from providers import AuthorProvider
+from diagnostics import diagnostic_report
 AUTHOR = AuthorProvider()
 from update_gate import UpdateGate
 UPDATE_GATE = UpdateGate()
@@ -33,6 +35,25 @@ from urllib.parse import urlsplit, unquote
 import yaml
 
 PROJECT = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent.parent))
+WEB_ASSETS = {
+    **{'/walkthrough/'+name+'.png': ('walkthrough/'+name+'.png', 'image/png')
+       for name in ('library', 'projects', 'discover', 'recommendations', 'first-step')},
+    **{'/'+name: (name, 'text/css' if name.endswith('.css') else 'text/javascript')
+       for name in ('manage.js', 'manage.css', 'workspace.js', 'onboarding.js',
+                    'experience.js', 'workbench.js', 'maintenance.js')},
+}
+
+
+def web_asset(route):
+    # The request selects a constant filename; it never becomes a path segment.
+    relative, mime = WEB_ASSETS[route]
+    root = (PROJECT/'web').resolve()
+    file = (root/relative).resolve()
+    if not file.is_relative_to(root):
+        raise OSError('Bundled asset is outside the web directory')
+    return file.read_bytes(), mime
+
+
 CACHE = cache_dir() / 'descriptions-v1.json'
 CATEGORIES = ['Understand', 'Design', 'Build', 'Verify', 'Write', 'Continue']
 STRINGS = ['title', 'summary', 'prompt', 'output', 'keywords']
@@ -61,7 +82,7 @@ def discovery_roots(home=None):
     home = home or Path.home()
     candidates = [home/'.agents/skills',
                   Path(os.environ.get('CODEX_HOME') or home/'.codex')/'skills',
-                  Path(os.environ.get('CLAUDE_CONFIG_DIR') or home/'.claude')/'skills']
+                  Path(os.environ.get('CLAUDE_CONFIG_DIR') or home/'.claude')/'skills', personal_root('opencode',home), personal_root('cursor',home)]
     return list(dict.fromkeys(p.expanduser().resolve() for p in candidates))
 
 
@@ -150,12 +171,11 @@ class Catalog:
                 errors.extend(failures)
                 for skill in found:
                     canonical = str(Path(skill['folder']).resolve())
-                    claude_config = os.environ.get('CLAUDE_CONFIG_DIR')
-                    harness = 'claude' if '.claude' in root.parts or bool(claude_config and root == Path(claude_config).expanduser().resolve()/'skills') else 'codex'
+                    harnesses = compatible_agents(root)
                     if canonical in seen:
-                        if harness not in seen[canonical]['harnesses']: seen[canonical]['harnesses'].append(harness)
+                        seen[canonical]['harnesses'] = sorted(set(seen[canonical]['harnesses']) | set(harnesses))
                         continue
-                    skill['harnesses'] = [harness]
+                    skill['harnesses'] = harnesses
                     seen[canonical] = skill
                     skill['library'] = str(root)
                     skill['managed'] = root == self.root
@@ -233,7 +253,7 @@ def live_html(token="", saved=None, theme="dark"):
     page = page.replace('all 19 skills', 'all installed skills')
     # Replace collection-specific overview text only in the live view.
     start, end = page.index('function overview(){'), page.index('function reference(){')
-    page = page[:start] + '''function overview(){return `<div class="page"><h1>Your global skills</h1><p class="lead">Browse installed skills and copy an example prompt for your task.</p><p>This view reads your global Codex and Claude skills directories. Your selected Codex or Claude Code CLI writes reference guidance when a skill is added or its documentation changes. Use $skill-name in Codex and /skill-name in Claude Code. Installed invocation policies determine how each skill starts.</p><p>Descriptions are generated guidance. Open the installed instructions for the source.</p></div>`}
+    page = page[:start] + '''function overview(){return `<div class="page"><h1>Your global skills</h1><p class="lead">Browse installed skills and copy an example prompt for your task.</p><p>This view reads registered project libraries and personal Codex, Claude Code, OpenCode, and Cursor skill directories. Your selected CLI writes reference guidance when a skill is added or its documentation changes. Use $skill-name in Codex, /skill-name in Claude Code or Cursor, and ask OpenCode to use the named skill. Installed invocation policies determine how each skill starts.</p><p>Descriptions are generated guidance. Open the installed instructions for the source.</p></div>`}
 ''' + page[end:]
     extra = '''<script>
 let lastCatalog='';
@@ -251,7 +271,8 @@ syncCatalog();const catalogEvents=new EventSource('/api/events');catalogEvents.o
 </script>'''
     page = page.replace('<!-- shared-theme:start -->', '<script>window.skillDeskTheme='+json.dumps(theme if theme in ('dark','light') else 'dark')+';</script><!-- shared-theme:start -->')
     page = page.replace('<!-- shared-theme:start -->', '<link rel="stylesheet" href="/manage.css"><!-- shared-theme:start -->')
-    extra += '<script>window.skillDeskToken=' + json.dumps(token) + ';</script><script src="/manage.js"></script><script src="/workspace.js"></script><script src="/onboarding.js"></script><script src="/experience.js"></script>'
+    extra += '<script>window.skillDeskMode='+json.dumps('test' if os.environ.get('SKILL_DESK_TEST_MODE')=='1' else 'development' if os.environ.get('SKILL_DESK_DEV_MODE')=='1' or not getattr(sys,'frozen',False) else 'local')+';</script>'
+    extra += '<script>window.skillDeskToken=' + json.dumps(token) + ';</script><script src="/manage.js"></script><script src="/workspace.js"></script><script src="/onboarding.js"></script><script src="/experience.js"></script><script src="/workbench.js"></script><script src="/maintenance.js"></script>'
     return page.replace('</body>', extra + '</body>').encode()
 
 
@@ -273,6 +294,8 @@ def serve(catalog, port, generate, manager=None):
                     'theme': 'light' if value.get('theme') == 'light' else 'dark', 'walkthrough': value.get('walkthrough') == 1, 'whatsNew': value.get('whatsNew','')}
         except (OSError, ValueError): return {}
     recommendations = Recommendations(PROJECT, lambda name, prompt, schema: UPDATE_GATE.author(lambda p, s: AUTHOR.generate(p, s, provider=name, analysis=True), prompt, schema), experience=manager.experience)
+    from workbench_api import Workbench
+    workbench=Workbench(manager,catalog,projects,recommendations)
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             if self.headers.get('Host') not in {f'127.0.0.1:{port}', f'localhost:{port}'}:
@@ -307,7 +330,7 @@ def serve(catalog, port, generate, manager=None):
             elif path == '/api/installation-history':
                 data, mime = json.dumps(manager.experience.history()).encode(), 'application/json'
             elif path == '/api/recommendation-choices':
-                data, mime = json.dumps(manager.experience.data['choices']).encode(), 'application/json'
+                data, mime = json.dumps(workbench.recommendation_choices()).encode(), 'application/json'
             elif path == '/api/projects':
                 data, mime = json.dumps(projects.listing()).encode(), 'application/json'
             elif path == '/api/preferences':
@@ -321,24 +344,25 @@ def serve(catalog, port, generate, manager=None):
                     for item in listing['installed']:
                         item['harnesses'] = by_id.get(item['id'], {}).get('harnesses', ['codex'])
                         item['project'] = projects.scope(by_id.get(item['id'], {}).get('library', str(manager.root)))
+                        item['location']=str(Path(catalog.files.get(item['id'],manager.root/item['name']/'SKILL.md')).parent)
                     for row in catalog.snapshot()['skills']:
                         if not row['managed']:
                             record = manager.registry.get(str(Path(catalog.files[row['id']]).parent), {})
-                            listing['installed'].append(dict(id=row['id'], name=row['name'], description=row['summary'], kind=record.get('kind', 'Existing'), source=record.get('source', row['library']), harnesses=row['harnesses'], project=projects.scope(row['library']), readOnly=True))
+                            listing['installed'].append(dict(id=row['id'], name=row['name'], description=row['summary'], kind=record.get('kind', 'Existing'), source=record.get('source', row['library']), harnesses=row['harnesses'], project=projects.scope(row['library']),location=str(Path(catalog.files[row['id']]).parent), readOnly=True))
+                for item in listing['installed']:
+                    item['duplicates']=[dict(location=other.get('location',''),agents=other.get('harnesses',[]),project=other.get('project')) for other in listing['installed'] if other['id']!=item['id'] and other['name'].casefold()==item['name'].casefold() and set(other.get('harnesses',[]))&set(item.get('harnesses',[]))]
                 data, mime = json.dumps(listing).encode(), 'application/json'
             elif path == '/api/usage-sources':
                 data, mime = json.dumps({'sources': history_sources(), **AUTHOR.snapshot()}).encode(), 'application/json'
             elif path == '/api/collections':
                 data, mime = json.dumps(bundled_collections.catalog(PROJECT)).encode(), 'application/json'
             elif path.startswith('/api/jobs/'):
-                with manager.lock: job = manager.jobs.get(path.removeprefix('/api/jobs/'))
+                job = manager.job_status(path.removeprefix('/api/jobs/'))
                 if not job: self.send_error(404); return
                 data, mime = json.dumps(job).encode(), 'application/json'
-            elif path in {'/walkthrough/'+name+'.png' for name in ('library','projects','discover','recommendations','first-step')}:
-                data, mime = (PROJECT/'web'/path.lstrip('/')).read_bytes(), 'image/png'
-            elif path in {'/manage.js', '/manage.css', '/workspace.js', '/onboarding.js', '/experience.js'}:
-                data = (PROJECT/'web'/path[1:]).read_bytes()
-                mime = 'text/javascript' if path.endswith('.js') else 'text/css'
+            elif path in WEB_ASSETS:
+                try: data, mime = web_asset(path)
+                except OSError: self.send_error(404); return
             elif path.startswith('/instructions/'):
                 with catalog.lock: file = catalog.files.get(path[len('/instructions/'):])
                 if not file: self.send_error(404); return
@@ -367,7 +391,7 @@ def serve(catalog, port, generate, manager=None):
                 if self.headers.get('Content-Type') != 'application/json':
                     self.json_reply(415, {'error': 'Expected JSON'}); return
                 length = int(self.headers.get('Content-Length', '0'))
-                limit = 134_000_000 if urlsplit(self.path).path == '/api/package-preview' else 350000
+                limit = 134_000_000 if urlsplit(self.path).path in {'/api/package-preview','/api/workbench'} else 600000 if urlsplit(self.path).path in {'/api/draft-edit','/api/draft-validate'} else 350000
                 if length <= 0 or length > limit:
                     self.json_reply(413, {'error': 'Request exceeds the size limit.'}); return
                 payload = json.loads(self.rfile.read(length))
@@ -379,7 +403,26 @@ def serve(catalog, port, generate, manager=None):
                     UPDATE_GATE.resume(); self.json_reply(200, {'ready': False}); return
                 with manager.lock:
                     if UPDATE_GATE.pending: raise ValueError('Skill-Desk is installing an app update. Please wait for the restart.')
-                if action == 'readiness': result = {'agents':check_all()}
+                if getattr(manager,'restoreRestartRequired',False):raise ValueError('Workspace settings were restored. Restart Skill-Desk before making further changes.')
+                if action=='native-test-report' and os.environ.get('SKILL_DESK_TEST_MODE')=='1' and os.environ.get('SKILL_DESK_NATIVE_TEST_REPORT'):
+                    from durable_state import atomic_json
+                    atomic_json(Path(os.environ['SKILL_DESK_NATIVE_TEST_REPORT']),payload)
+                    result={'recorded':True}
+                elif action == 'workbench':
+                    with manager.lock:
+                        if manager.busy and payload.get('op') not in {'overview','search'}:raise ValueError('Wait for the running job before changing the library.')
+                        result=workbench.handle(payload)
+                    changed.set()
+                elif action == 'provider-models':
+                    from opencode_support import models
+                    from providers import executable
+                    cli=executable('opencode')
+                    if not cli: raise ValueError('OpenCode is not installed.')
+                    result=manager.job(action,payload,lambda data,progress: dict(modelList=models(cli)))
+                elif action == 'provider-test': result=manager.job(action,payload,AUTHOR.test_connection)
+                elif action == 'readiness': result = {'agents':check_all()}
+                elif action == 'diagnostics': result = diagnostic_report(catalog,manager,projects,AUTHOR)
+                elif action == 'job-cancel': result = manager.cancel_job(payload)
                 elif action == 'feedback-preview': result = feedback_preview(payload)
                 elif action == 'recommendation-choice':
                     project=projects.get(payload['project']) if payload.get('project') else None
@@ -399,17 +442,18 @@ def serve(catalog, port, generate, manager=None):
                     catalog.roots = list(dict.fromkeys(global_roots + projects.roots()))
                     changed.set()
                     catalog.refresh(generate=False)
-                elif action == 'usage-preview':
+                elif action in {'usage-preview','usage-deep-preview'}:
                     project = projects.get(payload['project']) if payload.get('project') else None
                     if project: project_destination(project['path'],payload.get('target'))
-                    result = recommendations.preview(dict(payload, project=project))
+                    request=dict(payload,project=project,registeredProjects=projects.listing(),exclusions=workbench.history.value)
+                    result = manager.job('usage-deep-preview',request,lambda data,progress: recommendations.preview(dict(data,deep=True))) if action=='usage-deep-preview' else recommendations.preview(request)
                 elif action == 'usage-discard':
                     recommendations.previews.clear()
                     result = {'discarded': True}
                 elif action == 'recommend':
                     with catalog.lock: installed = [dict(name=r['name'], description=r['summary'], harnesses=list(r['harnesses']), project=projects.scope(r['library'])) for r in catalog.rows]
                     request = recommendations.prepare(payload, installed)
-                    result = manager.job('recommend', request, recommendations.run)
+                    result = manager.job('recommend', dict(request,requestId=payload.get('requestId')), recommendations.run)
                 elif action == 'preferences':
                     preferences = read_preferences()
                     if 'saved' in payload:
@@ -433,7 +477,7 @@ def serve(catalog, port, generate, manager=None):
                 elif action == 'provider':
                     with manager.lock:
                         if manager.busy: raise ValueError('Wait for the current create/import job to finish before changing providers.')
-                        result = AUTHOR.select(payload.get('provider'))
+                        result = AUTHOR.select(payload.get('provider'),payload.get('model'))
                 elif action == 'nearby-start':
                     if manager.busy or manager.drafts: raise ValueError('Finish the skill job or preview before sharing.')
                     result = manager.nearby.start(payload.get('mode'))
@@ -479,8 +523,8 @@ def serve(catalog, port, generate, manager=None):
                 elif action in {'package-preview', 'nearby-preview', 'collection-preview'}:
                     if manager.busy or len(manager.drafts) >= 20: raise ValueError('Finish the current job or discard previews first.')
                     target = payload.get('target', 'shared')
-                    if target not in {'shared', 'codex', 'claude'}: raise ValueError('Choose an installation provider.')
-                    target_root = manager.root if target == 'shared' else Path(os.environ.get('CLAUDE_CONFIG_DIR' if target == 'claude' else 'CODEX_HOME') or Path.home()/('.claude' if target == 'claude' else '.codex')).expanduser().resolve()/'skills'
+                    if target not in {'shared', *AGENT_LABELS}: raise ValueError('Choose an installation provider.')
+                    target_root = manager.root if target == 'shared' else personal_root(target)
                     project = projects.get(payload['project']) if payload.get('project') else None
                     if project: target_root = project_destination(project['path'],target)
                     conflict_roots = [target_root] if project else discovery_roots()[:2] if target=='codex' else [target_root]
@@ -502,11 +546,59 @@ def serve(catalog, port, generate, manager=None):
                     result['destination'] = str(target_root)
                     result['target'] = target
                     result['project'] = project
+                elif action in {'draft-edit','draft-validate','draft-file','draft-revision','draft-save','draft-revise','saved-drafts','draft-reopen','draft-delete','draft-resume'}:
+                    if manager.busy: raise ValueError('Wait for the current job before changing drafts.')
+                    if action=='draft-revise': result=manager.job(action,payload,manager.revise_draft)
+                    elif action=='draft-edit': result=manager.edit_draft(payload)
+                    elif action=='draft-validate':
+                        try: result=manager.edit_draft(payload,validate_only=True)
+                        except (ValueError,yaml.YAMLError) as error: result=dict(valid=False,message=str(error))
+                    elif action=='draft-file': result=manager.preview_file(payload)
+                    elif action=='draft-revision': result=manager.revision(payload)
+                    elif action=='draft-save': result=manager.save_draft(payload)
+                    elif action=='saved-drafts': result={'drafts':manager.saved_drafts(),'previews':[manager.describe_draft(token) for token in manager.drafts]}
+                    elif action=='draft-resume': result=manager.describe_draft(payload['draft'])
+                    elif action=='draft-delete': result=manager.delete_saved_draft(payload)
+                    else: result=manager.reopen_draft(payload,set(catalog.roots)|{personal_root(a) for a in AGENT_LABELS})
+                elif action in {'library-health','copy-comparison','duplicate-preview','multi-copy-preview'}:
+                    from library_review import health,compare
+                    with catalog.lock:
+                        rows=list(catalog.rows);files=dict(catalog.files)
+                    if action=='library-health':
+                        entries=[]
+                        for root in catalog.roots:
+                            if root.is_dir():
+                                entries.extend(dict(name=folder.name,folder=str(folder)) for folder in root.iterdir() if not folder.name.startswith('.') and (folder/'SKILL.md').is_file())
+                        result=manager.job(action,payload,lambda data,progress: dict(libraryHealth=health(entries,projects.listing())))
+                    elif action=='copy-comparison':
+                        if payload.get('left') not in files or payload.get('right') not in files: raise ValueError('A selected copy is unavailable.')
+                        result=compare(Path(files[payload['left']]).parent,Path(files[payload['right']]).parent)
+                    else:
+                        if manager.busy or len(manager.drafts)>=16: raise ValueError('Finish the current job or discard previews first.')
+                        file=files.get(payload.get('id'))
+                        if not file: raise ValueError('The source skill is unavailable.')
+                        project=projects.get(payload['project']) if payload.get('project') else None
+                        targets=payload.get('targets') if action=='multi-copy-preview' else [payload.get('target')]
+                        if not isinstance(targets,list) or not 1<=len(targets)<=4 or any(not isinstance(t,str) or t not in AGENT_LABELS for t in targets) or len(set(targets))!=len(targets): raise ValueError('Choose up to four unique agents.')
+                        previews=[]
+                        try:
+                            for target in targets:
+                                root=project_destination(project['path'],target) if project else personal_root(target)
+                                prepared=manager.duplicate_skill(Path(file).parent,payload,root) if action=='duplicate-preview' else manager.stage([Path(file).parent], 'Harness Copy', 'Copied from '+str(Path(file).parent),root,[root])
+                                previews.append(prepared)
+                                draft=manager.drafts[prepared['draft']];draft['target_agent']=target
+                                if project: draft['project_path']=project['path']
+                                draft['presentation']=dict(target=target,project=project)
+                                prepared.update(target=target,project=project)
+                        except BaseException:
+                            for preview in previews: manager.discard(preview)
+                            raise
+                        result=previews[0] if action=='duplicate-preview' else dict(previews=previews)
                 elif action == 'copy-preview':
                     with manager.lock:
                         if manager.busy or len(manager.drafts) >= 20: raise ValueError('Finish the current job or discard unused previews first.')
                     target = payload.get('target')
-                    if target not in {'codex', 'claude'}: raise ValueError('Choose Codex or Claude.')
+                    if target not in AGENT_LABELS: raise ValueError('Choose a supported agent.')
                     with catalog.lock:
                         row = next((r for r in catalog.rows if r['id'] == payload.get('id')), None)
                         file = catalog.files.get(payload.get('id'))
@@ -514,29 +606,35 @@ def serve(catalog, port, generate, manager=None):
                     project = projects.get(payload['project']) if payload.get('project') else None
                     if not project and target in row['installedHarnesses']: raise ValueError('A skill with this name is already installed for that harness.')
                     roots = discovery_roots()
-                    target_root = Path(os.environ.get('CLAUDE_CONFIG_DIR') or Path.home()/'.claude').expanduser().resolve()/'skills' if target == 'claude' else Path(os.environ.get('CODEX_HOME') or Path.home()/'.codex').expanduser().resolve()/'skills'
+                    target_root = personal_root(target)
                     if project: target_root = project_destination(project['path'],target)
                     result = manager.stage([Path(file).parent.resolve()], 'Harness Copy', 'Copied from '+str(Path(file).parent), target_root=target_root, conflict_roots=[target_root] if project else roots[:2] if target == 'codex' else [target_root])
                     result['targetHarness'] = target
                     result.update(target=target,project=project,destination=str(target_root))
+                    manager.drafts[result['draft']]['presentation']=dict(target=target,project=project)
                     if project: manager.drafts[result['draft']].update(project_path=project['path'],target_agent=target)
                 elif action in {'create', 'import'}:
                     project = projects.get(payload['project']) if payload.get('project') else None
-                    if not project: result = manager.job(action, payload)
+                    target=payload.get('target')
+                    if not project and (not target or target=='shared'): result = manager.job(action, dict(payload,target=native_agent(manager.root)))
                     else:
-                        target = payload.get('target')
-                        target_root = project_destination(project['path'],target)
+                        if target not in AGENT_LABELS: raise ValueError('Choose a supported destination agent.')
+                        target_root = project_destination(project['path'],target) if project else personal_root(target)
                         def project_job(data,progress):
                             prepared = manager.create(data,progress) if action=='create' else manager.prepare(data,progress)
                             with manager.lock:
                                 draft=manager.drafts[prepared['draft']]
-                                draft.update(target_root=target_root,conflict_roots=[target_root],project_path=project['path'],target_agent=target)
-                                for item in prepared['candidates']: item['conflict']=manager.conflict(item['name'],target_root,[target_root])
-                            return dict(prepared,target=target,project=project,destination=str(target_root))
+                                draft.update(target_root=target_root,conflict_roots=[target_root],target_agent=target,presentation=dict(target=target,project=project))
+                                if project: draft['project_path']=project['path']
+                                for item in prepared['candidates']:
+                                    item['conflict']=manager.conflict(item['name'],target_root,[target_root])
+                                    existing=target_root/item['name']
+                                    item['canCompare']=(existing/'SKILL.md').is_file() and not existing.is_symlink()
+                            return dict(prepared,target=target,project=project,destination=str(target_root),discoverableBy=compatible_agents(target_root))
                         result = manager.job(action,payload,project_job)
-                elif action in {'install', 'discard', 'archive', 'restore'}:
+                elif action in {'install', 'replace', 'comparison', 'discard', 'archive', 'restore'}:
                     result = getattr(manager, action)(payload)
-                    if action == 'install' and result.get('root'):
+                    if action in {'install','replace'} and result.get('root'):
                         destination_root = Path(result['root'])
                         if destination_root not in catalog.roots: catalog.roots.append(destination_root)
                         changed.set()
@@ -616,8 +714,8 @@ def serve(catalog, port, generate, manager=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, default=os.environ.get('SKILL_DESK_ROOT'), help='Override the selected library directory')
-    parser.add_argument('--library', choices=['codex','claude'], default=None)
-    parser.add_argument('--provider', choices=['codex','claude'], help='Authoring CLI; saved for future launches')
+    parser.add_argument('--library', choices=list(AGENT_LABELS), default=None)
+    parser.add_argument('--provider', choices=list(AGENT_LABELS), help='Authoring CLI; saved for future launches')
     parser.add_argument('--parent-pid', type=int, help='Desktop process to monitor for unexpected exits')
     parser.add_argument('--desktop', action='store_true', help='Exit when the desktop parent closes stdin')
     parser.add_argument('--port', type=int, default=8765)
@@ -651,7 +749,7 @@ def main():
     except RuntimeError as e: parser.exit(1, str(e)+'\n')
     if args.provider: AUTHOR.select(args.provider)
     roots = discovery_roots()
-    root = Path(args.root).expanduser().resolve() if args.root else (roots[-1] if args.library == 'claude' else roots[0])
+    root = Path(args.root).expanduser().resolve() if args.root else (personal_root(args.library) if args.library and args.library!='codex' else roots[0])
     root.mkdir(parents=True, exist_ok=True)
     catalog = Catalog(root, roots=[root] if args.root or args.library else roots)
     if args.once:

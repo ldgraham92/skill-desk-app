@@ -13,6 +13,7 @@ import time
 import urllib.request
 import psutil
 ROOT = Path(__file__).resolve().parent.parent
+VERSION = json.loads((ROOT/'package.json').read_text())['version']
 
 def main():
     binary = ROOT/'dist'/('skilldesk-service.exe' if sys.platform == 'win32' else 'skilldesk-service')
@@ -39,9 +40,9 @@ def main():
                 with urllib.request.urlopen(url+path, timeout=5) as response: return response.read()
             page=get('/')
             assert b'/manage.js' in page and b'/experience.js' in page and b'/onboarding.js' in page
-            for asset in ['/experience.js','/workspace.js','/onboarding.js','/walkthrough/library.png','/walkthrough/first-step.png']:
+            for asset in ['/experience.js','/workspace.js','/onboarding.js','/workbench.js','/maintenance.js','/walkthrough/library.png','/walkthrough/first-step.png']:
                 assert get(asset), asset
-            assert json.loads(get('/api/release'))['version']=='0.3.0'
+            assert json.loads(get('/api/release'))['version']==VERSION
             assert len(json.loads(get('/api/collections')))==2
             token=json.loads(re.search(rb'window.skillDeskToken=(.*?);',page).group(1))
             request=urllib.request.Request(url+'/api/preferences', data=json.dumps({'saved':['smoke-test']}).encode(), headers={'Content-Type':'application/json','Origin':url,'X-Skill-Desk-Token':token})
@@ -74,6 +75,27 @@ def main():
             finally: saved_package.unlink()
             preview = post('package-preview', {'data': package_data, 'target': 'shared'})
             assert preview['candidates'][0]['conflict']
+            draft_key=dict(draft=preview['draft'],candidate='0')
+            original=preview['candidates'][0]['content']
+            edited=original+'\nReview this edited packaging fixture.'
+            assert post('draft-validate',dict(draft_key,original=original,content=edited))['valid']
+            updated=post('draft-edit',dict(draft_key,original=original,content=edited))
+            assert 'edited packaging fixture' in updated['candidates'][0]['content']
+            assert post('draft-file',dict(draft_key,file='SKILL.md'))['content']==edited
+            assert 'edited packaging fixture' in post('draft-revision',draft_key)['diff']
+            revised=post('workbench',dict(op='draft-files',**draft_key,expected=updated['candidates'][0]['treeDigest'],changes=[dict(action='add',file='notes.md',content='Packaged supporting file.')]))
+            assert 'notes.md' in revised['candidates'][0]['files']
+            assert post('workbench',dict(op='draft-export',draft=revised['draft'],candidate='0'))['bytes']>0
+            post('discard',{'draft':revised['draft']})
+            assert post('workbench',dict(op='overview'))['entries']
+            assert post('workbench',dict(op='search',query={'text':'smoke'}))['results']
+            saved_draft=post('draft-save',draft_key)
+            assert len(post('saved-drafts')['drafts'])==1
+            reopened=post('draft-reopen',{'id':saved_draft['saved']})
+            assert reopened['candidates'][0]['content']==edited
+            post('discard',{'draft':reopened['draft']})
+            post('draft-delete',{'id':saved_draft['saved']})
+            assert not post('saved-drafts')['drafts']
             post('discard', {'draft': preview['draft']})
             skill.rename(Path(tmp)/'original-skill')
             preview = post('package-preview', {'data': package_data, 'target': 'shared'})
@@ -102,9 +124,16 @@ def main():
             post('project-remove',{'id':project['id']})
             assert (repo/'.agents/skills/diagnosing-bugs/SKILL.md').is_file()
             report=post('feedback-preview',{'kind':'Bug','title':'Smoke test','message':'Bundled feedback route works.','screen':'Smoke test'})
-            assert '0.3.0' in report['body']
-            post('preferences',{'walkthrough':1,'whatsNew':'0.3.0'})
-            assert json.loads(get('/api/preferences'))['whatsNew']=='0.3.0'
+            assert VERSION in report['body']
+            post('preferences',{'walkthrough':1,'whatsNew':VERSION})
+            assert json.loads(get('/api/preferences'))['whatsNew']==VERSION
+            check=post('library-health')
+            for _ in range(50):
+                job=json.loads(get('/api/jobs/'+check['job']))
+                if job['status']!='running': break
+                time.sleep(.1)
+            assert job['status']=='complete' and job['result']['libraryHealth']['checked']>=1
+            print('Packaged draft editing, validation, file preview, saved recovery and health checks passed.')
             print('Shipped service package export, save, conflict check and import passed.')
             assert post('update-prepare')['ready'] is True
             blocked=urllib.request.Request(url+'/api/provider',data=b'{"provider":"codex"}',headers={'Content-Type':'application/json','Origin':url,'X-Skill-Desk-Token':token})

@@ -8,6 +8,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'scripts'))
 from skill_desk import Catalog, discovery_roots
 
 class DiscoveryTests(unittest.TestCase):
+    def test_new_agent_roots_and_compatibility(self):
+        from agents import personal_root, compatible_agents
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ,{},clear=True):
+            home=Path(tmp).resolve()
+            self.assertEqual(personal_root('opencode',home),home/'.config/opencode/skills')
+            self.assertEqual(personal_root('cursor',home),home/'.cursor/skills')
+            roots=discovery_roots(home)
+            self.assertEqual(len(roots),5)
+            for agent in ('opencode','cursor'):
+                root=personal_root(agent,home);folder=root/'example';folder.mkdir(parents=True)
+                (folder/'SKILL.md').write_text('---\nname: example\ndescription: Test skill\n---\nInstructions.')
+                self.assertEqual(compatible_agents(root),[agent])
+            catalog=Catalog(roots[0],home/'cache.json',roots=roots);catalog.refresh(generate=False)
+            self.assertEqual(len(catalog.rows),2)
+            self.assertEqual({r['harnesses'][0] for r in catalog.rows},{'opencode','cursor'})
     def test_default_catalog_reads_all_personal_libraries(self):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {}, clear=True), patch('skill_desk.Path.home', side_effect=RuntimeError('No home available')):
             home = Path(tmp)
@@ -52,9 +67,9 @@ class DiscoveryTests(unittest.TestCase):
                 (folder/'SKILL.md').write_text('---\nname: example\ndescription: Test\n---\nInstructions.')
             catalog=Catalog(roots[0],home/'cache.json',roots=roots);catalog.refresh(generate=False)
             self.assertEqual(len(catalog.rows),2)
-            self.assertTrue(all(row['installedHarnesses']==['claude','codex'] for row in catalog.rows))
-            self.assertEqual(catalog.rows[0]['harnesses'],['codex'])
-            self.assertEqual(catalog.rows[1]['harnesses'],['claude'])
+            self.assertTrue(all(row['installedHarnesses']==['claude','codex','cursor','opencode'] for row in catalog.rows))
+            self.assertEqual(catalog.rows[0]['harnesses'],['codex','cursor'])
+            self.assertEqual(catalog.rows[1]['harnesses'],['claude','cursor','opencode'])
 
     def test_cross_harness_preview_preserves_files_and_rechecks_conflicts(self):
         from management import Manager
@@ -70,6 +85,6 @@ class DiscoveryTests(unittest.TestCase):
             manager.install(payload)
             self.assertEqual((target/'example/reference.md').read_text(),'Preserve this reference.')
             self.assertTrue((source/'SKILL.md').exists())
-            with self.assertRaises(ValueError): manager.install(payload)
+            self.assertTrue(manager.install(payload)['alreadyInstalled'])
             self.assertEqual(manager.registry[str(target/'example')]['kind'],'Harness Copy')
             manager.temporary.cleanup()

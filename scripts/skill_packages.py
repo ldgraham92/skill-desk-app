@@ -35,10 +35,14 @@ def export_package(entries):
             folder = Path(entry['folder']).resolve()
             details = validate_folder(folder)
             files = {}
+            portable_names=set()
             for rel in inventory(folder):
                 path = folder / rel
                 name = path.relative_to(folder).as_posix()
                 portable_path(f'skills/{i}/{name}')
+                normalized=unicodedata.normalize('NFC',name).casefold()
+                if normalized in portable_names:raise ValueError('Skill contains filenames that collide on case-insensitive platforms: '+name)
+                portable_names.add(normalized)
                 if path.is_symlink() or not path.resolve().is_relative_to(folder):
                     raise ValueError('Skill changed during export. Refresh and retry.')
                 if any(p.lower() in {'.env', '.ssh', '.aws', '.credentials', 'credentials.json', 'auth.json'} or p.lower().startswith('.env.') for p in PurePosixPath(name).parts):

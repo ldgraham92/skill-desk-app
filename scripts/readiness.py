@@ -9,7 +9,7 @@ from providers import executable,LABELS
 from platform_support import command_prefix,subprocess_options
 
 def check_agent(name):
-    result=dict(id=name,label=LABELS[name],installed=False,signedIn=None,compatible=None,status='missing',version='',message='Install this CLI, sign in, and check again.',command='codex login' if name=='codex' else 'claude auth login')
+    result=dict(id=name,label=LABELS[name],installed=False,signedIn=None,compatible=None,status='missing',version='',message='Install this CLI, sign in, and check again.',command={'codex':'codex login','claude':'claude auth login','opencode':'opencode auth login','cursor':'agent login'}[name])
     cli=executable(name)
     if not cli:return result
     result['installed']=True
@@ -22,9 +22,17 @@ def check_agent(name):
             version=run(['--version']);match=re.search(r'\b\d+\.\d+\.\d+(?:[-.][\w.]+)?',version.stdout)
             if version.returncode:raise ValueError('CLI did not start')
             result['version']=match.group(0) if match else 'Unknown version'
+            if name=='opencode':
+                from opencode_support import capabilities
+                result['compatible']=capabilities(cli)['compatible']
+                result.update(status='unknown' if result['compatible'] else 'update',message='CLI starts. Choose an available model, then run the explicit connection test in Library settings. Free models may not require a paid account. History recommendations remain unavailable.',command='opencode models')
+                return result
+            if name=='cursor':
+                result.update(status='unknown',message='CLI starts. Confirm its saved login and model in Terminal. Skill authoring and installation are supported; isolated history recommendations are not yet supported.',command='opencode auth list' if name=='opencode' else 'agent status')
+                return result
             help_result=run(['exec','--help'] if name=='codex' else ['--help'])
             needed=['--ignore-user-config','--ephemeral','--output-schema'] if name=='codex' else ['--setting-sources','--strict-mcp-config','--disable-slash-commands','--json-schema']
-            result['compatible']=True if help_result.returncode==0 and all(flag in help_result.stdout for flag in needed) else None
+            result['compatible']=all(flag in help_result.stdout for flag in needed) if help_result.returncode==0 else None
             if name=='claude' and match and int(match.group(0).split('.')[0])<2:
                 result.update(status='update',message='Update Claude Code before checking saved authentication.',command='claude update');return result
             auth=run(['login','status'] if name=='codex' else ['auth','status'])
@@ -41,4 +49,4 @@ def check_agent(name):
     return result
 
 def check_all():
-    with ThreadPoolExecutor(max_workers=2) as pool:return list(pool.map(check_agent,['codex','claude']))
+    with ThreadPoolExecutor(max_workers=2) as pool:return list(pool.map(check_agent,LABELS))

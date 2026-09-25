@@ -1,15 +1,17 @@
 """Persist explicitly onboarded repositories without modifying their contents."""
 import json
+from durable_state import StateFile
 from pathlib import Path
 import secrets
 import threading
+from agents import LABELS, PROJECT_FOLDERS
 
 
 def project_destination(path, agent):
     root=Path(path)
-    if agent not in ('codex','claude'): raise ValueError('Choose Codex or Claude Code for this project.')
+    if agent not in LABELS: raise ValueError('Choose a supported agent for this project.')
     if not root.is_dir() or root.is_symlink() or not (root/'.git').exists(): raise ValueError('Project is unavailable. Reconnect its repository before installing.')
-    destination=root/('.agents' if agent=='codex' else '.claude')/'skills'
+    destination=root/PROJECT_FOLDERS[agent]/'skills'
     for part in (destination.parent,destination):
         if part.is_symlink() or (part.exists() and not part.is_dir()): raise ValueError('Project skill directories must be ordinary folders inside the repository.')
     if not destination.resolve().is_relative_to(root.resolve()): raise ValueError('Project skill directory is outside the repository.')
@@ -19,15 +21,14 @@ def project_destination(path, agent):
 class Projects:
     def __init__(self,state):
         self.file=Path(state)/'projects.json';self.lock=threading.RLock()
-        try:
-            value=json.loads(self.file.read_text(encoding='utf-8'))
-            self.items=[p for p in value if isinstance(p,dict) and all(isinstance(p.get(k),str) for k in ('id','name','path'))] if isinstance(value,list) else []
-        except (OSError,ValueError): self.items=[]
+        self.store=StateFile(self.file,[])
+        self.items=self.store.value
+        if any(not isinstance(row,dict) or any(not isinstance(row.get(key),str) for key in ('id','name','path')) for row in self.items):
+            self.store.error='Project registrations have an invalid structure. The original projects.json is preserved; restore a verified backup.'
+            self.items=[]
 
     def save(self):
-        self.file.parent.mkdir(parents=True,exist_ok=True)
-        tmp=self.file.with_suffix('.tmp');tmp.write_text(json.dumps(self.items,indent=2),encoding='utf-8');tmp.replace(self.file)
-
+        self.store.save(self.items)
     def listing(self):
         with self.lock:
             return [dict(p,available=Path(p['path']).is_dir() and (Path(p['path'])/'.git').exists()) for p in self.items]
@@ -43,7 +44,7 @@ class Projects:
         if not isinstance(raw,str) or not raw.strip() or len(raw)>2000 or not isinstance(name,str) or len(name)>80: raise ValueError('Enter a repository path and a name of up to 80 characters.')
         path=Path(raw.strip()).expanduser().resolve()
         if not path.is_dir() or not (path/'.git').exists(): raise ValueError('Choose the root of an existing Git repository, containing .git.')
-        for agent in ('codex','claude'): project_destination(path,agent)
+        for agent in LABELS: project_destination(path,agent)
         with self.lock:
             if any(p['path']==str(path) for p in self.items): raise ValueError('This repository is already onboarded.')
             if len(self.items)>=50: raise ValueError('Up to 50 projects can be onboarded.')
@@ -59,20 +60,20 @@ class Projects:
         result=[]
         for row in self.listing():
             if not row['available']: continue
-            for agent in ('codex','claude'):
+            for agent in LABELS:
                 try: result.append(project_destination(row['path'],agent))
                 except ValueError: pass
         return result
 
     def scope(self,library):
         for row in self.listing():
-            if Path(library).resolve() in [(Path(row['path'])/'.agents/skills').resolve(),(Path(row['path'])/'.claude/skills').resolve()]: return row['id']
+            if Path(library).resolve() in [(Path(row['path'])/folder/'skills').resolve() for folder in PROJECT_FOLDERS.values()]: return row['id']
         return ''
 
     def notes(self,payload):
         key=payload.get('id');value=payload.get('notes')
         notes=value if isinstance(value,dict) else {payload.get('agent'):value}
-        if not notes or any(agent not in ('codex','claude') or not isinstance(text,str) or len(text)>2000 for agent,text in notes.items()):raise ValueError('Enter up to 2,000 characters for each agent’s project notes.')
+        if not notes or any(agent not in LABELS or not isinstance(text,str) or len(text)>2000 for agent,text in notes.items()):raise ValueError('Enter up to 2,000 characters for each agent’s project notes.')
         with self.lock:
             self.get(key);row=next(p for p in self.items if p['id']==key)
             row.setdefault('notes',{}).update({agent:text.strip() for agent,text in notes.items()});self.save();return dict(row)

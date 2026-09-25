@@ -1,6 +1,6 @@
 # Skill-Desk desktop
 
-Skill-Desk packages its local service and web interface in a Tauri desktop window. The installer includes Python and the service dependencies. Users only need a signed-in Codex or Claude Code CLI for AI authoring, and Git for repository imports. Browsing and Markdown imports work without an authoring CLI.
+Skill-Desk packages its local service and web interface in a Tauri desktop window. The installer includes Python and the service dependencies. Users only need a signed-in supported CLI for AI authoring, and Git for repository imports. Browsing and Markdown imports work without an authoring CLI.
 
 ## Installation
 
@@ -16,7 +16,7 @@ These initial packages are unsigned developer previews. Public signing and notar
 
 Opening the app starts its bundled service on an available loopback port. A second launch focuses the existing window. The tray menu offers **Open Skill-Desk**, **Hide to tray**, and **Quit Skill-Desk**. Closing the main window quits. Hide to tray keeps the service and active work running. Quitting or closing the window sends an explicit shutdown signal to the service, which terminates active authoring/import subprocesses. A parent-process check also stops the service after an unexpected desktop exit. Installed skills remain available to their agents after Skill-Desk exits.
 
-Skill-Desk reads the personal Codex library at `~/.agents/skills` by default. The existing server CLI supports `--library claude`; a desktop library selector is a separate future improvement. Provider selection in Manage changes the authoring CLI, not the installation directory.
+Skill-Desk reads the personal Codex library at `~/.agents/skills` by default. Choose the destination agent in create/import previews or the project selector. The server CLI also supports `--library codex`, `claude`, `opencode`, or `cursor`. Provider selection in Manage changes the authoring CLI separately from the installation directory.
 
 The server watches filesystem changes. Catalog and Manage updates use server events, with a 30-second connection heartbeat. An active job still polls for progress. AI descriptions are generated for new/changed skills; cached skills do not need another call. Failed description generation schedules a retry after its backoff; an unchanged healthy library does not trigger repeated scans.
 

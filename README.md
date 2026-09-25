@@ -3,7 +3,7 @@
 <p align="center">Discover, create and manage the skills behind your AI work.</p>
 <p align="center"><a href="https://github.com/ldgraham92/skill-desk/actions/workflows/desktop.yml"><img src="https://github.com/ldgraham92/skill-desk/actions/workflows/desktop.yml/badge.svg" alt="Desktop builds"></a> <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a></p>
 
-Skill-Desk is a free, open-source desktop manager for personal AI skills. It keeps your skill files on your machine and uses your installed, signed-in Codex or Claude Code CLI when you ask it to author a skill. Reference guidance is generated for new or changed skills and cached locally.
+Skill-Desk is a free, open-source desktop manager for personal AI skills. It keeps your skill files on your machine and uses your installed, signed-in Codex, Claude Code, OpenCode, or Cursor CLI when you ask it to author a skill. Reference guidance is generated for new or changed skills and cached locally.
 
 **[Download a desktop release](https://github.com/ldgraham92/skill-desk/releases)** · **[Report a bug](https://github.com/ldgraham92/skill-desk/issues/new/choose)** · **[Try the standalone demo](marketing/index.html)**
 
@@ -17,13 +17,17 @@ Skill-Desk is a free, open-source desktop manager for personal AI skills. It kee
 - Track User Created, Repo Installed, Markdown Imported and Existing origins.
 - Archive removed skills and restore them with installation-conflict checks.
 - Refresh the library when skill files change.
-- Choose Codex or Claude Code as the authoring provider, using its existing CLI login.
+- Choose Codex, Claude Code, OpenCode, or Cursor as the authoring provider, using its existing CLI login.
 
 The desktop window and bundled local service start together. The tray menu opens or hides the window. Closing the window or choosing Quit stops the service. Installed skills remain available to their agents when Skill-Desk is closed.
 
 ## New in 0.3
 
 Onboard project repositories, browse AI Hero and PStack, and get recommendations from the agent you install skills for. Review overlap with your existing skills, save or dismiss suggestions, and copy a first step after installation. Installation history offers edit-aware undo and local usefulness assessments. A walkthrough, What's new panel, readiness checks, and reviewed GitHub feedback drafts help you get started and report issues. See the [skills and projects guide](docs/SKILL-PACKAGES.md).
+
+## Library maintenance
+
+Version 0.4 adds reviewed upstream updates, supporting-file editing and revisions, workspace backups and recovery, local tags and collections, full-instruction search, and expanded history controls. See the [library maintenance guide](docs/LIBRARY-MAINTENANCE.md).
 
 ## Install
 
@@ -35,11 +39,11 @@ Choose the appropriate asset from [Releases](https://github.com/ldgraham92/skill
 | macOS | `.dmg`, with the CPU architecture in the filename |
 | Debian/Ubuntu Linux x64 | `.deb` |
 
-Python is bundled. Browsing and Markdown imports do not require an AI account. AI authoring requires an installed and signed-in Codex or Claude Code CLI. GitHub repository imports require Git. CLI usage consumes your provider account's allowance; Skill-Desk does not operate a paid generation service.
+Python is bundled. Browsing and Markdown imports do not require an AI account. AI authoring requires an installed supported CLI with an available model. OpenCode free-model access is configured within OpenCode. GitHub repository imports require Git. CLI usage consumes your provider account's allowance; Skill-Desk does not operate a paid generation service.
 
 The releases are previews without Windows publisher signing or macOS notarization. The in-app updater verifies release signatures before installation; see [app updates](#app-updates).
 
-The desktop app currently manages `~/.agents/skills`. Authoring-provider selection does not change the installation directory. The development server supports `--library claude` for `~/.claude/skills`; a desktop library selector is planned.
+Choose an installation agent separately from the authoring CLI. Create, import, and collection previews show the personal or project destination before installation. See [supported agents and models](docs/AGENTS-AND-MODELS.md).
 
 ## Prefer to build it yourself?
 
@@ -80,7 +84,7 @@ Build a distributable installer with `npm run desktop:build`. The [Actions workf
 
 ## Roadmap
 
-Next: repository-filtered history samples, broader agent integrations, and OS publisher signing. Version 0.3 includes bundled collections, project libraries, recommendations, installation history, and app updates.
+Version 0.4 adds repository-filtered history and OpenCode/Cursor skill management and authoring. Next: isolated history recommendations for those agents. OS publisher signing is deferred until development is ready for paid signing accounts. Version 0.3 includes bundled collections, project libraries, recommendations, installation history, and app updates.
 
 ## License and attribution
 
@@ -88,12 +92,16 @@ Skill-Desk is MIT licensed. See [LICENSE](LICENSE). The original bundled skill/r
 
 ### Personal skill discovery
 
-The desktop scans `~/.agents/skills`, `~/.codex/skills`, and `~/.claude/skills`. `CODEX_HOME` and `CLAUDE_CONFIG_DIR` override the corresponding CLI configuration directories. On Windows, `~` means your user profile. Manage shows the scanned paths. Linked copies of the same skill appear once; separate copies with the same name remain separate. Missing optional folders are watched for creation.
+The desktop scans `~/.agents/skills`, `~/.codex/skills`, `~/.claude/skills`, `~/.config/opencode/skills`, and `~/.cursor/skills`. `CODEX_HOME` and `CLAUDE_CONFIG_DIR` override the corresponding CLI configuration directories. On Windows, `~` means your user profile. Manage shows the scanned paths. Linked copies of the same skill appear once; separate copies with the same name remain separate. Missing optional folders are watched for creation.
 
-New skills install to the shared `.agents/skills` folder. Entries discovered in the other CLI folders are currently read-only in Manage. Project-local skills and plugin caches are not scanned. An explicit `--root` or `--library` keeps the standalone service limited to that selected library.
+New skills install to the shared `.agents/skills` folder. Entries discovered in the other CLI folders are currently read-only in Manage. Registered project skill directories are scanned; plugin caches are not scanned. An explicit `--root` or `--library` keeps the standalone service limited to that selected library.
 
-Use the All / Codex / Claude selector beside search to filter the catalog, Manage, and printed guide. All shows harness labels. A skill installed in only one harness offers an install action for the other. The preview preserves the complete folder and requires a separate install click; existing destination names are never overwritten. Copies are independent, and harness-specific instructions may need editing.
+Use the All / Codex / Claude Code / OpenCode / Cursor selector beside search to filter the catalog, Manage, and printed guide. All shows harness labels. A skill installed in only one harness offers an install action for the other. The preview preserves the complete folder and requires a separate install click; existing destination names are never overwritten. Copies are independent, and harness-specific instructions may need editing.
 
 ### App updates
 
 Use Update Ready in the sidebar, Updates, or Check for updates in the tray menu. Review release notes, then choose Update and restart. Updates wait for active skill jobs and outstanding previews. Windows, macOS, and Linux AppImage builds support in-app updates; Debian packages use package-manager upgrades. See [update and release setup](docs/UPDATES.md).
+
+See [local development checks](docs/LOCAL-TESTING.md) for isolated browser QA, cancellation and recovery tests, and the boundary between mocked and live agent validation.
+
+The current local development pass adds editable drafts, saved draft recovery, comparisons and copies across agents, library health checks, and deeper history scans. See [the second overnight handoff](docs/OVERNIGHT-2-HANDOFF.md) for validation and remaining OpenCode access limits. These changes have not been released.

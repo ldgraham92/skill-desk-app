@@ -32,7 +32,7 @@ def lock_file(path):
     return handle
 
 def prepare_path():
-    extra = [Path.home()/'.local/bin', Path.home()/'.cargo/bin', Path('/opt/homebrew/bin'), Path('/usr/local/bin')]
+    extra = [Path.home()/'.local/bin', Path.home()/'.cargo/bin', Path.home()/'.opencode/bin', Path.home()/'.bun/bin', Path.home()/'.npm-global/bin', Path('/opt/homebrew/bin'), Path('/usr/local/bin')]
     if sys.platform == 'win32':
         extra += [Path(os.environ.get('APPDATA', Path.home()/'AppData/Roaming'))/'npm', Path(os.environ.get('LOCALAPPDATA') or Path.home()/'AppData/Local')/'Programs/Claude', Path(os.environ.get('ProgramFiles', 'C:/Program Files'))/'Git/cmd']
     os.environ['PATH'] = os.pathsep.join([os.environ.get('PATH','')] + [str(p) for p in extra if p.is_dir()])

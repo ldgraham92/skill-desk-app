@@ -123,6 +123,7 @@ async fn install(app:&tauri::AppHandle)->Result<(),String> {
     app.restart();
 }
 pub fn automatic(app:tauri::AppHandle) {
+    if cfg!(debug_assertions) && std::env::var("SKILL_DESK_TEST_MODE").as_deref()==Ok("1") { return; }
     tauri::async_runtime::spawn(async move {
         loop {
             let path=app.path().app_data_dir().ok().map(|p|p.join("update-check.json"));

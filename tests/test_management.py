@@ -113,3 +113,36 @@ class LifecycleTests(unittest.TestCase):
         self.assertTrue((self.root/'linked-test').is_symlink())
 
 if __name__ == '__main__': unittest.main()
+
+class ReplacementTests(unittest.TestCase):
+    setUp=LifecycleTests.setUp
+    tearDown=LifecycleTests.tearDown
+    install=LifecycleTests.install
+    def test_comparison_and_replacement_preserve_original(self):
+        self.install()
+        updated=MD.replace('Record the requested result.','Record and verify the requested result.')
+        draft=self.manager.prepare({'content':updated});data=dict(draft=draft['draft'],candidate='0')
+        review=self.manager.comparison(data)
+        self.assertIn('+Record and verify',review['diff']);self.assertEqual(review['changed'],['SKILL.md'])
+        result=self.manager.replace(dict(data,fingerprint=review['fingerprint']))
+        self.assertEqual((self.root/'isolated-test-skill/SKILL.md').read_text(),updated)
+        self.assertEqual((Path(result['previousCopy'])/'SKILL.md').read_text(),MD)
+        self.assertTrue(self.manager.replace(dict(data,fingerprint=review['fingerprint']))['alreadyInstalled'])
+        self.assertTrue(self.manager.listing()['archived'])
+
+    def test_replacement_rejects_unreviewed_and_stale_comparison(self):
+        self.install();draft=self.manager.prepare({'content':MD});data=dict(draft=draft['draft'],candidate='0')
+        with self.assertRaisesRegex(ValueError,'comparison'):self.manager.replace(data)
+        review=self.manager.comparison(data)
+        file=self.root/'isolated-test-skill/SKILL.md';file.write_text(MD+'User edits')
+        with self.assertRaisesRegex(ValueError,'changed'):self.manager.replace(dict(data,fingerprint=review['fingerprint']))
+        self.assertIn('User edits',file.read_text())
+
+    def test_failed_replacement_restores_previous_copy(self):
+        from unittest.mock import patch
+        self.install();draft=self.manager.prepare({'content':MD});data=dict(draft=draft['draft'],candidate='0')
+        review=self.manager.comparison(data)
+        with patch.object(self.manager,'install',side_effect=OSError('Synthetic disk failure')):
+            with self.assertRaises(OSError):self.manager.replace(dict(data,fingerprint=review['fingerprint']))
+        self.assertEqual((self.root/'isolated-test-skill/SKILL.md').read_text(),MD)
+        self.assertEqual(self.manager.listing()['archived'],[])

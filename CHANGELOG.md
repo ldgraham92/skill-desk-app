@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.4.0
+
+- Clarify recommendation review and installation, preserve saved job outcomes, and report fixed diagnostic codes without private conversation content.
+- Update Pillow to 12.3.0, PyInstaller to 6.22.3, Tauri to 2.11.6, its CLI to 2.11.5, and single-instance to 2.4.5. Backport the upstream Linux glib iterator safety fix; see [backport provenance](src-tauri/vendor/GLIB-BACKPORT.md).
+- Check static asset containment and saved revision paths, bound Nearby address parsing, and preserve malformed job records without preventing startup.
+- Reviewed GitHub updates with immutable pins, three-way file merges, conflict decisions, provenance, and archived rollback previews.
+- Supporting-file edits, whole-folder revisions, templates, Markdown preview, and draft export.
+- Verified workspace backups, selective restoration, operation recovery, restart interruption records, and stale-window checks.
+- Full-instruction search, saved searches, local notes/tags/collections, batch actions, and agent-aware quality reports.
+- History exclusions, explicitly saved reviewed samples, recommendation comparisons, and saved-suggestion freshness.
+- Actual macOS WebKit interaction checks, a packaged active-job shutdown test, failure injection, and bounded soak testing.
+
+- Editable draft instructions, revision diffs, bounded supporting-file previews, and explicitly saved local drafts.
+- Reviewed duplication and copies to multiple agents, identical/diverged copy comparisons, and a read-only library health report.
+- OpenCode V2 private-server support, model discovery/search, explicit connection tests, and specific free-tier errors.
+- Fairer history read budgets, registered project labels, date/project breakdowns, review filters, and a cancellable deeper scan.
+- Real OpenCode CLI tests against a synthetic local model; history recommendations stay disabled after inherited configuration and persistence were confirmed.
+
+- History coverage counts, refresh timestamps, project labels, and sampling across dates and projects.
+- Cancellable agent/import jobs, preserved form inputs, actionable errors, and retry-safe installation requests.
+- Agent capability matrix, broader executable discovery, validated model settings, and local diagnostics without private content.
+- Duplicate-copy warnings and reviewed single-skill replacement with archived originals and rollback checks.
+- Recommendation evidence labels and exclusion of saved/dismissed skill names across collections.
+- Keyboard focus recovery, responsive capability details, visible QA/development labels, and disposable browser tests.
+
+
+- Read current Codex desktop user-message records, exclude subagent sessions and injected context, and retain a bounded opening section of large histories.
+- Default project recommendation previews to repository-matched prompts, with an explicit All projects option and notices for missing metadata and incomplete samples.
+- Add OpenCode and Cursor personal/project skill destinations, compatible-library discovery, installation previews, authoring through signed-in CLIs, and local readiness checks.
+- Save optional CLI model selections, including configured DeepSeek models through OpenCode. No direct API-key provider or SDK is added.
+- Keep automatic history recommendations limited to the isolated Codex and Claude Code integrations. Publisher signing remains deferred.
+
 ## 0.3.0
 
 - Reorganize Manage skills into Installed, Discover, and For you, with project and agent destinations.

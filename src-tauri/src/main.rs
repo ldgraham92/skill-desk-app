@@ -20,7 +20,20 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(updates::Updates::default())
         .invoke_handler(tauri::generate_handler![updates::update_status,updates::update_check,updates::update_install])
-        .on_page_load(|window, _| { if window.label()=="main" { updates::sync_button(window.app_handle()); } })
+        .on_page_load(|window, _| {
+            if window.label()=="main" { updates::sync_button(window.app_handle()); }
+            // Explicit debug-only test entrypoint. No remote page can choose a script.
+            #[cfg(debug_assertions)]
+            if std::env::var("SKILL_DESK_TEST_MODE").as_deref()==Ok("1") {
+                if let Ok(url)=window.url() {
+                    if url.host_str()==Some("127.0.0.1") {
+                        if let Ok(path)=std::env::var("SKILL_DESK_NATIVE_TEST_SCRIPT") {
+                            if let Ok(script)=std::fs::read_to_string(path) { let _=window.eval(&script); }
+                        }
+                    }
+                }
+            }
+        })
         .manage(Service(Mutex::new(None)))
         .setup(|app| {
             let navigation_app=app.handle().clone();
@@ -40,6 +53,7 @@ fn main() {
             // The loopback page receives no Tauri IPC capabilities. Only Rust can
             // start the bundled service or perform native desktop operations.
             let (mut rx, child) = app.shell().sidecar("skilldesk-service")?
+                .env("SKILL_DESK_DEV_MODE", if cfg!(debug_assertions) { "1" } else { "0" })
                 .args(["--desktop", "--port", "0", "--parent-pid", &std::process::id().to_string()]).spawn()?;
             *app.state::<Service>().0.lock().unwrap() = Some(child);
             updates::automatic(app.handle().clone());

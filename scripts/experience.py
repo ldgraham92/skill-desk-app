@@ -1,6 +1,7 @@
 """Local tester feedback, recommendation choices and installation history."""
 import hashlib
 import json
+from durable_state import StateFile
 from pathlib import Path
 import platform
 import secrets
@@ -8,7 +9,7 @@ import stat
 import threading
 import time
 
-VERSION='0.3.0'
+VERSION='0.4.0'
 
 def bounded(value,limit,label,empty=True):
     if not isinstance(value,str) or len(value)>limit or (not empty and not value.strip()): raise ValueError('Invalid '+label+'.')
@@ -17,15 +18,12 @@ def bounded(value,limit,label,empty=True):
 class Experience:
     def __init__(self,state):
         self.path=Path(state)/'experience.json';self.lock=threading.RLock()
-        try:
-            value=json.loads(self.path.read_text(encoding='utf-8'))
-            self.data=value if isinstance(value,dict) else {}
-        except (ValueError,OSError):self.data={}
+        self.store=StateFile(self.path,{})
+        self.data=self.store.value
         for key in ('choices','installations'):
             if not isinstance(self.data.get(key),list):self.data[key]=[]
     def save(self):
-        self.path.parent.mkdir(parents=True,exist_ok=True)
-        tmp=self.path.with_suffix('.tmp');tmp.write_text(json.dumps(self.data,indent=2),encoding='utf-8');tmp.replace(self.path)
+        self.store.save(self.data)
     def choices(self,agent,project=''):
         with self.lock:return [dict(x) for x in self.data['choices'] if x['agent']==agent and x['project']==project]
     def choose(self,payload,skill,project=''):
@@ -36,7 +34,7 @@ class Experience:
             old=self.data['choices'];keep=[x for x in old if (x['skill'],x['agent'],x['project'])!=(skill['id'],agent,project)]
             if status!='reset':
                 if len(keep)>=1000:raise ValueError('Clear some saved or dismissed suggestions first.')
-                keep.append(dict(skill=skill['id'],name=skill['name'],collection=skill['collection'],agent=agent,project=project,status=status,note=note,reason=bounded(payload.get('reason',''),1200,'reason'),firstStep=bounded(payload.get('firstStep',''),1500,'first step'),updated=time.time()))
+                keep.append(dict(skill=skill['id'],name=skill['name'],collection=skill['collection'],agent=agent,project=project,status=status,note=note,reason=bounded(payload.get('reason',''),1200,'reason'),firstStep=bounded(payload.get('firstStep',''),1500,'first step'),contextDigest=bounded(payload.get('contextDigest',''),64,'context fingerprint'),updated=time.time()))
             self.data['choices']=keep;self.save()
         return self.choices(agent,project)
     def record_install(self,record):

@@ -35,6 +35,19 @@ def local_ip(value):
     except ValueError: return False
 
 
+def receiver_address(value):
+    message = 'Enter the receiver IPv4 address and port shown on its screen.'
+    # Reject oversized input before stripping or parsing it. IPv4:port needs at
+    # most 21 characters; allow a little whitespace around pasted addresses.
+    if not isinstance(value, str) or len(value) > 64:
+        raise ValueError(message)
+    host, separator, port = value.strip().partition(':')
+    if (not separator or not local_ip(host) or not 1 <= len(port) <= 5
+            or not port.isascii() or not port.isdecimal() or not 1 <= int(port) <= 65535):
+        raise ValueError(message)
+    return host, int(port)
+
+
 def addresses():
     return sorted({a.address for items in psutil.net_if_addrs().values() for a in items
                    if a.family == socket.AF_INET and local_ip(a.address) and not a.address.startswith('127.')})
@@ -298,20 +311,19 @@ class Session:
         connection.close()
 
     def probe(self, address):
-        match=re.fullmatch(r'([0-9.]+):([0-9]{1,5})',str(address).strip())
-        if not match or not local_ip(match[1]) or not 1<=int(match[2])<=65535: raise ValueError('Enter the receiver IPv4 address and port shown on its screen.')
-        conn,fp=self.connection(match[1],int(match[2]),timeout=4)
+        host,port=receiver_address(address)
+        conn,fp=self.connection(host,port,timeout=4)
         try:
             conn.request('GET',PREFIX+'info')
             response=conn.getresponse()
             if response.status!=200: raise ValueError('Skill-Desk is not receiving at that address.')
             info=json.loads(response.read(16385))
             if not isinstance(info,dict) or info.get('skilldeskMode')!='receive': raise ValueError('Open Receive on the other device first.')
-            info.update(fingerprint=fp,port=int(match[2]),protocol='https')
-            self.add_peer(match[1],info,manual=True)
+            info.update(fingerprint=fp,port=port,protocol='https')
+            self.add_peer(host,info,manual=True)
         finally: self.close_connection(conn)
         state = self.snapshot()
-        state['selectedPeer'] = next((peer['id'] for peer in state['peers'] if peer['ip'] == match[1] and peer['port'] == int(match[2]) and peer['fingerprint'] == fp), None)
+        state['selectedPeer'] = next((peer['id'] for peer in state['peers'] if peer['ip'] == host and peer['port'] == port and peer['fingerprint'] == fp), None)
         return state
 
     def offer(self, handler, query):
