@@ -70,11 +70,12 @@ class AdvancedDrafts:
                 files=set(inventory(copy))
                 for change in changes:
                     name=change.get('file','');portable_path(name)
-                    if name.split('/')[0] in {'.git','.skilldesk'}: raise ValueError('Reserved draft path.')
+                    if {'.git','.skilldesk'}.intersection(name.split('/')): raise ValueError('Reserved draft path.')
                     path=copy/name; action=change.get('action')
                     if action in {'edit','remove','rename'} and name not in files: raise ValueError('File no longer exists: '+name)
                     if action=='rename':
                         target=change.get('to','');portable_path(target)
+                        if {'.git','.skilldesk'}.intersection(target.split('/')): raise ValueError('Reserved draft path.')
                         if name=='SKILL.md' or target=='SKILL.md': raise ValueError('Keep the SKILL.md entrypoint in place.')
                         if (copy/target).exists(): raise ValueError('Rename destination already exists.')
                         (copy/target).parent.mkdir(parents=True,exist_ok=True)

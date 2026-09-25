@@ -42,8 +42,10 @@ class ReliabilityTests(unittest.TestCase):
   folder.rename(self.root/'moved')
   with self.assertRaisesRegex(ValueError,'missing'):self.manager.undo_preview({'id':row['id']})
   (self.root/'moved').rename(folder)
-  file=folder/'SKILL.md';file.chmod(0o700)
-  with self.assertRaisesRegex(ValueError,'changed'):self.manager.undo_preview({'id':row['id']})
+  file=folder/'SKILL.md'
+  if os.name!='nt':
+   file.chmod(0o700)
+   with self.assertRaisesRegex(ValueError,'changed'):self.manager.undo_preview({'id':row['id']})
   shutil.rmtree(folder)
   with self.assertRaisesRegex(ValueError,'missing'):self.manager.undo_preview({'id':row['id']})
  def test_undo_rejects_changed_root_symlink(self):
@@ -67,7 +69,7 @@ class ReliabilityTests(unittest.TestCase):
   with patch('diagnostics.executable',return_value='/PRIVATE/executable'):result=diagnostic_report(catalog,self.manager,projects,provider)
   self.assertNotIn('PRIVATE',json.dumps(result));self.assertEqual(result['jobs']['failed'],1)
  def test_missing_cli_from_gui_path_uses_known_user_bin(self):
-  file=self.root/'.opencode/bin/opencode';file.parent.mkdir(parents=True);file.write_text('fixture');file.chmod(0o755)
+  file=self.root/'.opencode/bin'/('opencode.exe' if os.name=='nt' else 'opencode');file.parent.mkdir(parents=True);file.write_text('fixture');file.chmod(0o755)
   with patch('providers.Path.home',return_value=self.root),patch('providers.shutil.which',return_value=None):self.assertEqual(executable('opencode'),str(file))
  def test_provider_failures_do_not_echo_private_output(self):
   for output,message in [('401 PRIVATE','sign-in'),('rate limit PRIVATE','usage limit'),('unknown model PRIVATE','model is unavailable'),('unknown option PRIVATE','required option')]:

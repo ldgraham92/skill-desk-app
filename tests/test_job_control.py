@@ -41,7 +41,8 @@ class JobTests(unittest.TestCase):
             manager.cancel_job({'job':token})
             while manager.busy and time.monotonic()<deadline:time.sleep(.01)
             self.assertEqual(manager.jobs[token]['status'],'cancelled')
-            with self.assertRaises(ProcessLookupError):os.kill(int(pidfile.read_text()),0)
+            import psutil
+            self.assertFalse(psutil.pid_exists(int(pidfile.read_text())))
             self.assertFalse(manager.busy)
             next_job=manager.job('import',{},lambda *_:{'ok':True})['job']
             while manager.busy and time.monotonic()<deadline:time.sleep(.01)

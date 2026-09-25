@@ -4,6 +4,7 @@
 
 - Clarify recommendation review and installation, preserve saved job outcomes, and report fixed diagnostic codes without private conversation content.
 - Update Pillow to 12.3.0, PyInstaller to 6.22.3, Tauri to 2.11.6, its CLI to 2.11.5, and single-instance to 2.4.5. Backport the upstream Linux glib iterator safety fix; see [backport provenance](src-tauri/vendor/GLIB-BACKPORT.md).
+- Reject reserved draft-file rename paths and use portable supporting-file paths on Windows.
 - Check static asset containment and saved revision paths, bound Nearby address parsing, and preserve malformed job records without preventing startup.
 - Reviewed GitHub updates with immutable pins, three-way file merges, conflict decisions, provenance, and archived rollback previews.
 - Supporting-file edits, whole-folder revisions, templates, Markdown preview, and draft export.

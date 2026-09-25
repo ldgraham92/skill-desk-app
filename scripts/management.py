@@ -53,7 +53,9 @@ def inventory(folder):
         total += size
         if size > 10_000_000 or total > 30_000_000 or len(files) >= 1000:
             raise ValueError('Skill exceeds the import limit of 1,000 files / 30 MB, or a file exceeds 10 MB.')
-        files.append(str(p.relative_to(folder)))
+        # UI and package paths use '/' on every OS. Native Windows separators
+        # otherwise make nested files fail the portable draft-path checks.
+        files.append(p.relative_to(folder).as_posix())
     return files
 
 

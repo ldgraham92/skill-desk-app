@@ -58,6 +58,20 @@ class MaintenanceTests(unittest.TestCase):
  def test_find_replace_reviews_all_text(self):
   (self.source/'notes.txt').write_text('First line.');d=self.draft();next=self.m.replace_text(dict(draft=d['draft'],candidate='0',expected=d['candidates'][0]['treeDigest'],find='First',replacement='Changed'))
   self.assertEqual(len(next['fileChanges']),2)
+ def test_nested_draft_file_uses_portable_path_and_can_be_edited(self):
+  nested=self.source/'references/notes.md';nested.parent.mkdir();nested.write_text('Original')
+  d=self.draft();self.assertIn('references/notes.md',d['candidates'][0]['files'])
+  result=self.m.file_changes(dict(draft=d['draft'],candidate='0',expected=d['candidates'][0]['treeDigest'],changes=[dict(action='edit',file='references/notes.md',content='Edited')]))
+  self.assertEqual((self.m.drafts[result['draft']]['paths']['0']/'references/notes.md').read_text(),'Edited')
+  self.assertEqual(nested.read_text(),'Original')
+ def test_file_changes_reject_unsafe_and_reserved_destinations(self):
+  d=self.draft();key=dict(draft=d['draft'],candidate='0',expected=d['candidates'][0]['treeDigest'])
+  for target in ('../escape','/absolute','C:/escape','nested/../../escape','nested\\escape','.git/notes.txt','nested/.git/notes.txt','.skilldesk/notes.txt'):
+   for action in ('add','rename'):
+    change=dict(action=action,file='notes.txt',to=target) if action=='rename' else dict(action=action,file=target,content='Changed')
+    with self.subTest(target=target,action=action),self.assertRaises(ValueError):
+     self.m.file_changes(dict(key,changes=[change]))
+  self.assertEqual((self.m.drafts[d['draft']]['paths']['0']/'notes.txt').read_text(),'old notes')
  def test_three_way_merges_nonoverlapping_edits(self):
   base={'a':b'one\ntwo\nthree\n'};local={'a':b'ONE\ntwo\nthree\n'};remote={'a':b'one\ntwo\nTHREE\n'}
   merged,conflicts,_,_=merge_files(base,local,remote);self.assertFalse(conflicts);self.assertEqual(merged['a'],b'ONE\ntwo\nTHREE\n')
