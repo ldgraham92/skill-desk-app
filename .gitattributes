@@ -1,0 +1,2 @@
+# Preserve checksum-verified upstream bytes on every runner, including Windows.
+src-tauri/vendor/glib-0.18.5/** -text
