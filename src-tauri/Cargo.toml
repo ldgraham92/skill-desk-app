@@ -17,3 +17,10 @@ serde_json = "1"
 tauri-plugin-updater = "2"
 reqwest = { version = "0.12", features = ["json"] }
 tokio = { version = "1", features = ["time"] }
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+glib = "0.18"
+
+# GTK 0.18 requires this API series. See vendor/GLIB-BACKPORT.md.
+[patch.crates-io]
+glib = { path = "vendor/glib-0.18.5" }
