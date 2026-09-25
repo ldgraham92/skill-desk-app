@@ -1,4 +1,5 @@
 import json
+from contextlib import closing
 import os
 from pathlib import Path
 import sqlite3
@@ -148,7 +149,7 @@ class WorkbenchTests(unittest.TestCase):
   self.assertEqual(sample['found'],2);self.assertEqual(sample['coverage']['codex']['sessionsFound'],1)
  def test_opencode_v2_reader_ignores_assistants_and_child_sessions(self):
   root=self.base/'opencode';root.mkdir();now=1800000000
-  with sqlite3.connect(root/'opencode.db') as db:
+  with closing(sqlite3.connect(root/'opencode.db')) as db, db:
    db.execute('create table session_v2 (id text,directory text,parent_id text)');db.execute('create table session_message (session_id text,type text,time_created integer,data text)')
    db.executemany('insert into session_v2 values (?,?,?)',[('root','/fixture',None),('child','/fixture','root')])
    for sid,role,text in [('root','user','Review the synthetic user prompt'),('root','assistant','PRIVATE assistant response'),('child','user','PRIVATE delegated prompt')]:
