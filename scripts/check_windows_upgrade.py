@@ -84,7 +84,14 @@ def main():
             # Use the updater plugin's NSIS update mode, preserving app data and shortcuts.
             subprocess.run([str(installers[0]), '/S', '/UPDATE', '/D='+str(app)], check=True, timeout=180)
             expected = ROOT/'src-tauri/target/release/Skill-Desk.exe'
-            expected_hash = hashlib.sha256(expected.read_bytes()).hexdigest()
+            # Tauri embeds NSS in the installer payload, then restores the raw
+            # build's UNK marker. Reproduce only that documented byte substitution.
+            # tauri-cli-v2.11.5/crates/tauri-bundler/src/bundle.rs:patch_binary
+            expected_bytes = expected.read_bytes()
+            marker = b'__TAURI_BUNDLE_TYPE_VAR_UNK'
+            assert marker in expected_bytes, 'Missing Tauri bundle-type marker'
+            expected_bytes = expected_bytes.replace(marker, b'__TAURI_BUNDLE_TYPE_VAR_NSS', 1)
+            expected_hash = hashlib.sha256(expected_bytes).hexdigest()
             # The installer launcher may return while a child finishes replacing files.
             deadline = time.monotonic()+60
             actual_hash = None
