@@ -67,6 +67,9 @@ jobs:
       - name: Verify Windows updater window
         if: runner.os == 'Windows'
         run: python scripts/check_windows_updater.py
+      - name: Verify Windows installer upgrade and saved state
+        if: runner.os == 'Windows'
+        run: python scripts/check_windows_upgrade.py
       - name: Build isolated Linux native test app
         if: runner.os == 'Linux'
         run: |

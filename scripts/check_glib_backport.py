@@ -43,7 +43,7 @@ def main():
     assert actual == expected, 'Vendored file inventory differs'
     metadata = json.loads(subprocess.check_output([
         'cargo', 'metadata', '--locked', '--format-version', '1', '--filter-platform', 'x86_64-unknown-linux-gnu',
-        '--manifest-path', str(ROOT/'src-tauri/Cargo.toml')], text=True))
+        '--manifest-path', str(ROOT/'src-tauri/Cargo.toml')], text=True, encoding='utf-8'))
     resolved = {node['id'] for node in metadata['resolve']['nodes']}
     glib = [p for p in metadata['packages'] if p['id'] in resolved and p['name'] == 'glib']
     assert len(glib) == 1 and glib[0]['source'] is None, 'Unpatched or duplicate glib in Linux graph'
