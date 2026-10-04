@@ -11,12 +11,12 @@ import unittest
 from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parent.parent
-sys.path.insert(0,str(ROOT/'scripts'))
-from usage_history import scan, redact, sources, project_matches
-from recommendations import Recommendations
-from management import Manager
-from skill_packages import import_package
-import bundled_collections
+sys.path.insert(0,str(ROOT/'src'))
+from skilldesk.usage_history import scan, redact, sources, project_matches
+from skilldesk.recommendations import Recommendations
+from skilldesk.management import Manager
+from skilldesk.skill_packages import import_package
+from skilldesk import bundled_collections
 
 
 class UsageTests(unittest.TestCase):
@@ -56,7 +56,7 @@ class UsageTests(unittest.TestCase):
             self.jsonl(self.roots['codex']/f'sessions/{project}.jsonl',[
                 dict(type='session_meta',payload=dict(cwd='/workspace/'+project)),
                 *[dict(timestamp=self.now-(i%2)*86400,type='event_msg',payload=dict(type='user_message',message=f'Review module {i} for {project}')) for i in range(count)]])
-        with patch('usage_history.MAX_EXCERPTS',4):sample=scan(['codex'],30,self.roots,self.now)
+        with patch('skilldesk.usage_history.MAX_EXCERPTS',4):sample=scan(['codex'],30,self.roots,self.now)
         self.assertEqual({e['project'] for e in sample['excerpts']},{'busy','quiet'})
         self.assertEqual(len({e['date'] for e in sample['excerpts']}),2)
         self.assertEqual(sum(e['project']=='quiet' for e in sample['excerpts']),2)
@@ -89,7 +89,7 @@ class UsageTests(unittest.TestCase):
             dict(timestamp=self.iso,type='response_item',payload=dict(type='message',role='user',content=[dict(type='input_text',text='Review my recurring application failures')]))])
         import os
         os.utime(self.roots['codex']/'sessions/human.jsonl',(self.now-5,self.now-5))
-        with patch('usage_history.MAX_SCAN_BYTES',2000):sample=scan(['codex'],30,self.roots,self.now)
+        with patch('skilldesk.usage_history.MAX_SCAN_BYTES',2000):sample=scan(['codex'],30,self.roots,self.now)
         self.assertEqual(sample['sampled'],1)
         self.assertNotIn('PRIVATE',json.dumps(sample))
 
@@ -123,7 +123,7 @@ class UsageTests(unittest.TestCase):
         connections=[];connect=sqlite3.connect
         def capture(*args,**kwargs):
             connection=connect(*args,**kwargs);connections.append(connection);return connection
-        with patch('usage_history.sqlite3.connect',side_effect=capture):
+        with patch('skilldesk.usage_history.sqlite3.connect',side_effect=capture):
             sample=scan(['opencode'],30,self.roots,self.now)
         self.assertEqual(len(connections),1)
         with self.assertRaises(sqlite3.ProgrammingError):connections[0].execute('SELECT 1')
@@ -200,7 +200,7 @@ class UsageTests(unittest.TestCase):
         middle=b'\n'.join(json.dumps(row).encode() for row in [dict(type='turn_context',payload=dict(cwd=project)),dict(timestamp=self.iso,type='event_msg',payload=dict(type='user_message',message='Review this request in the middle of a large session'))])+b'\n'
         content=header+b'\n'*(500000-len(header))+middle
         path.write_bytes(content+b'\n'*(1200000-len(content)))
-        with patch('usage_history.MAX_FILE_BYTES',600000):sample=scan(['codex'],30,self.roots,self.now,project_path=project)
+        with patch('skilldesk.usage_history.MAX_FILE_BYTES',600000):sample=scan(['codex'],30,self.roots,self.now,project_path=project)
         self.assertEqual(sample['sampled'],1)
         self.assertEqual(sample['coverage']['codex']['bytesRead'],600000)
         self.assertEqual(sample['coverage']['codex']['truncatedFiles'],1)
@@ -214,7 +214,7 @@ class UsageTests(unittest.TestCase):
             dict(timestamp=self.iso,type='event_msg',payload=dict(type='user_message',message='PRIVATE tail with missing context')),
             dict(type='turn_context',payload=dict(cwd=project)),
             dict(timestamp=self.iso,type='event_msg',payload=dict(type='user_message',message='Debug repository with fresh context'))])
-        with patch('usage_history.MAX_FILE_BYTES',800):
+        with patch('skilldesk.usage_history.MAX_FILE_BYTES',800):
             sample=scan(['codex'],30,self.roots,self.now,project_path=project)
         self.assertEqual(sample['sampled'],1)
         self.assertNotIn('PRIVATE',json.dumps(sample))
@@ -361,7 +361,7 @@ class RecommendationTests(unittest.TestCase):
         self.assertIn('Portal',self.calls[-1][1])
 
     def test_choices_exclude_candidates_and_notes_follow_the_selected_agent(self):
-        from experience import Experience
+        from skilldesk.experience import Experience
         store=Experience(self.base/'state');self.service.experience=store
         store.choose(dict(agent='codex',status='dismissed',note='Prefer another workflow'),dict(id='ai-hero:diagnosing-bugs',name='diagnosing-bugs',collection='ai-hero'),'p1')
         project=dict(id='p1',name='Portal',notes={'codex':'Backend verification','claude':'CLAUDE_PRIVATE_NOTE'})

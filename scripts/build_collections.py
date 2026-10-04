@@ -9,8 +9,11 @@ import shutil
 import subprocess
 import tempfile
 
-from skill_packages import export_package
-from management import metadata
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from skilldesk.skill_packages import export_package
+from skilldesk.management import metadata
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCES = [

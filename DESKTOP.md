@@ -32,7 +32,7 @@ Our [Actions workflow](.github/workflows/desktop.yml) runs tests and the package
 
 State and archives: `%LOCALAPPDATA%\Skill-Desk` on Windows, `~/Library/Application Support/Skill-Desk` on macOS, and `$XDG_DATA_HOME/Skill-Desk` (default `~/.local/share/Skill-Desk`) on Linux. Existing Mac state is preserved. Favorites persist in preferences.json independently of the local server port. Caches use the corresponding platform cache folder. `SKILL_DESK_HOME` overrides app state for isolated tests.
 
-The icon source is `assets/skilldesk.svg`, based on the four-line mark in the marketing demo. To regenerate the platform assets, run `python scripts/make_icons.py` then `npm run icons`. Windows shortcuts reference the branded application executable; macOS uses the generated ICNS file, and the tray uses the bundled PNG.
+The icon source is `assets/skilldesk.svg`, the application’s four-line mark. To regenerate the platform assets, run `python scripts/make_icons.py` then `npm run icons`. Windows shortcuts reference the branded application executable; macOS uses the generated ICNS file, and the tray uses the bundled PNG.
 
 ## Verification still needed for distribution
 

@@ -8,8 +8,8 @@ import re
 import time
 import unicodedata
 import yaml
-from durable_state import StateFile
-from job_control import checkpoint
+from .durable_state import StateFile
+from .job_control import checkpoint
 
 
 class LibraryTools:
@@ -70,7 +70,7 @@ class LibraryTools:
         return dict(results=rows,partial=len(entries)>2000 or read>=31_800_000,bytesRead=read,searches=self.data['searches'])
 
     def duplicates(self,entries):
-        from upstream import bytes_map
+        from .upstream import bytes_map
         hashes=defaultdict(list);names=defaultdict(list)
         for row in entries[:2000]:
             checkpoint()
@@ -107,8 +107,8 @@ class LibraryTools:
 
 
 def quality(folder,agents=None):
-    from management import validate_folder,inventory,metadata,local_references
-    from skill_packages import portable_path
+    from .management import validate_folder,inventory,metadata,local_references
+    from .skill_packages import portable_path
     folder=Path(folder);issues=[]
     def issue(code,message,severity='advisory',file='SKILL.md'):issues.append(dict(code=code,message=message,severity=severity,file=file))
     try:details=validate_folder(folder)

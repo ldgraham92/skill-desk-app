@@ -10,7 +10,7 @@ import sqlite3
 from contextlib import closing
 import time
 from collections import defaultdict, deque, Counter
-from job_control import checkpoint
+from .job_control import checkpoint
 
 LABELS = {'codex': 'Codex', 'claude': 'Claude Code', 'opencode': 'OpenCode'}
 MAX_EXCERPTS = 120

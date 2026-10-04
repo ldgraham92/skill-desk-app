@@ -8,10 +8,10 @@ import secrets
 import time
 import zipfile
 
-import bundled_collections
-from management import metadata
-from recommendation_errors import RecommendationError
-from usage_history import scan, MAX_EXCERPTS, MAX_TEXT, LABELS
+from . import bundled_collections
+from .management import metadata
+from .recommendation_errors import RecommendationError
+from .usage_history import scan, MAX_EXCERPTS, MAX_TEXT, LABELS
 
 TEXT_SCHEMA={'type':'string','minLength':1,'maxLength':1200}
 ITEM_PROPERTIES={'skill':{'type':'string'},'reason':TEXT_SCHEMA,'firstStep':TEXT_SCHEMA,'evidence':{'type':'array','minItems':1,'maxItems':3,'items':{'type':'string'}}}

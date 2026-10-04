@@ -5,8 +5,8 @@ import subprocess
 import tempfile
 from functools import lru_cache
 from pathlib import Path
-from job_control import run_process
-from platform_support import command_prefix, subprocess_options
+from .job_control import run_process
+from .platform_support import command_prefix, subprocess_options
 
 
 @lru_cache(maxsize=8)
@@ -59,6 +59,6 @@ def text_result(stdout):
             error=event.get('error',{})
             message=error.get('message','') if isinstance(error,dict) else str(error)
             # Imported lazily to avoid a provider import cycle.
-            from providers import generation_error
+            from .providers import generation_error
             raise RuntimeError(generation_error('opencode',message))
     return ''.join(e.get('part',{}).get('text','') for e in events if e.get('type')=='text')

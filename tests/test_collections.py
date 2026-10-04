@@ -9,10 +9,10 @@ import unittest
 import zipfile
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT/'scripts'))
-import bundled_collections
-from management import Manager
-from skill_packages import import_package
+sys.path.insert(0, str(ROOT/'src'))
+from skilldesk import bundled_collections
+from skilldesk.management import Manager
+from skilldesk.skill_packages import import_package
 
 
 class CollectionTests(unittest.TestCase):

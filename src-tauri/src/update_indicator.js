@@ -2,7 +2,9 @@
   const state = __UPDATE_STATE__;
   const bar = document.querySelector('.topbar');
   if (!bar) return;
-  const openUpdates = () => { location.href = 'skilldesk://updates'; };
+  const openUpdates = () => {
+    location.href = 'skilldesk://updates';
+  };
   let updates = document.getElementById('app-updates');
   if (!updates) {
     updates = document.createElement('button');
@@ -37,17 +39,24 @@
     notice = document.createElement('div');
     notice.id = 'app-update-notice';
     notice.hidden = true;
-    notice.innerHTML = '<button id="app-update-ready" type="button"><span class="update-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M5 17v4h14v-4"/></svg></span><span class="update-label" aria-live="polite"></span></button>';
+    notice.innerHTML =
+      '<button id="app-update-ready" type="button"><span class="update-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M5 17v4h14v-4"/></svg></span><span class="update-label" aria-live="polite"></span></button>';
     notice.querySelector('button').onclick = openUpdates;
     sidebar.insertBefore(notice, sidebar.querySelector('footer'));
   }
-  const labels = { available: 'Update Ready', downloading: 'Downloading update', waiting: 'Update waiting', installing: 'Installing update' };
+  const labels = {
+    available: 'Update Ready',
+    downloading: 'Downloading update',
+    waiting: 'Update waiting',
+    installing: 'Installing update',
+  };
   if (state.phase === 'available') notice.dataset.version = state.version || '';
   if (state.phase === 'current' || state.phase === 'idle') delete notice.dataset.version;
   let label = labels[state.phase];
   // Keep a discovered update visible during a recheck or a retryable error.
   // A successful check reporting no update clears the notice.
-  if ((state.phase === 'checking' || state.phase === 'error') && notice.dataset.version) label = labels.available;
+  if ((state.phase === 'checking' || state.phase === 'error') && notice.dataset.version)
+    label = labels.available;
   notice.hidden = !label;
   const text = notice.querySelector('.update-label');
   if (text.textContent !== (label || '')) text.textContent = label || '';

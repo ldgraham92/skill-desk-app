@@ -5,13 +5,13 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from providers import AuthorProvider
-from management import Manager
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
+from skilldesk.providers import AuthorProvider
+from skilldesk.management import Manager
 
 class ProviderTests(unittest.TestCase):
  def setUp(self):
-  patcher=patch('providers.opencode_support.capabilities',return_value={'standalone':True,'compatible':True});patcher.start();self.addCleanup(patcher.stop)
+  patcher=patch('skilldesk.providers.opencode_support.capabilities',return_value={'standalone':True,'compatible':True});patcher.start();self.addCleanup(patcher.stop)
  def test_opencode_and_cursor_authoring_use_stdin_and_parse_json(self):
   for name in ('opencode','cursor'):
    with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
@@ -26,25 +26,25 @@ class ProviderTests(unittest.TestCase):
      config=json.loads((Path(kwargs['cwd'])/'.cursor/cli.json').read_text())
      self.assertIn('Shell(*)',config['permissions']['deny']);self.assertNotIn('--force',cmd)
      return SimpleNamespace(returncode=0,stdout=json.dumps({'subtype':'success','result':'{"skill_md":"example"}'}),stderr='')
-    with patch('providers.executable',return_value='/fixture/'+name),patch('providers.subprocess.run',side_effect=complete):
+    with patch('skilldesk.providers.executable',return_value='/fixture/'+name),patch('skilldesk.providers.subprocess.run',side_effect=complete):
      self.assertEqual(provider('PRIVATE BRIEF',{'type':'object'}),{'skill_md':'example'})
-    with patch('providers.subprocess.run') as run:
+    with patch('skilldesk.providers.subprocess.run') as run:
      with self.assertRaisesRegex(ValueError,'Isolated'):provider.generate('history',{},provider=name,analysis=True)
      run.assert_not_called()
  def test_new_cli_errors_and_model_settings(self):
   with tempfile.TemporaryDirectory() as tmp:
    settings=Path(tmp)/'settings.json';provider=AuthorProvider(settings)
-   with patch('providers.executable',return_value='/fixture/opencode'):
+   with patch('skilldesk.providers.executable',return_value='/fixture/opencode'):
     provider.select('opencode','deepseek/deepseek-chat')
     self.assertEqual(AuthorProvider(settings).models['opencode'],'deepseek/deepseek-chat')
     with self.assertRaises(ValueError):provider.select('opencode','--bad model')
     for output in ['not JSON',json.dumps({'type':'error','error':'PRIVATE'}),json.dumps({'type':'text','part':{'text':'{"truncated":'}})]:
-     with patch('providers.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout=output,stderr='')):
+     with patch('skilldesk.providers.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout=output,stderr='')):
       with self.assertRaises((ValueError,RuntimeError)) as error:provider('brief',{})
       self.assertNotIn('PRIVATE',str(error.exception))
  def test_cursor_executable_names(self):
-  from providers import executable
-  with patch('providers.shutil.which',side_effect=lambda name:'/fixture/agent' if name=='agent' else None),patch('providers.Path.is_file',return_value=False):
+  from skilldesk.providers import executable
+  with patch('skilldesk.providers.shutil.which',side_effect=lambda name:'/fixture/agent' if name=='agent' else None),patch('skilldesk.providers.Path.is_file',return_value=False):
    self.assertEqual(executable('cursor'),'/fixture/agent')
  def test_new_agent_invocation_policy_follows_destination(self):
   with tempfile.TemporaryDirectory() as tmp:
@@ -56,20 +56,20 @@ class ProviderTests(unittest.TestCase):
  def test_claude_structured_output_and_login_environment(self):
   with tempfile.TemporaryDirectory() as tmp:
    p=AuthorProvider(Path(tmp)/'settings.json');p.name='claude'
-   with patch('providers.executable',return_value='/test/claude'), patch.dict('os.environ',{'ANTHROPIC_API_KEY':'dummy'}), patch('providers.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout=json.dumps({'structured_output':{'skill_md':'example'}}),stderr='')) as run:
+   with patch('skilldesk.providers.executable',return_value='/test/claude'), patch.dict('os.environ',{'ANTHROPIC_API_KEY':'dummy'}), patch('skilldesk.providers.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout=json.dumps({'structured_output':{'skill_md':'example'}}),stderr='')) as run:
     self.assertEqual(p('brief',{}),{'skill_md':'example'})
     args,kw=run.call_args;self.assertIn('--json-schema',args[0]);self.assertEqual(args[0][args[0].index('--tools')+1],'');self.assertNotIn('ANTHROPIC_API_KEY',kw['env'])
  def test_claude_errors_and_missing_output(self):
   with tempfile.TemporaryDirectory() as tmp:
    p=AuthorProvider(Path(tmp)/'settings.json');p.name='claude'
-   with patch('providers.executable',return_value='/test/claude'),patch('providers.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout='{"is_error":true,"result":"No login"}',stderr='')):
+   with patch('skilldesk.providers.executable',return_value='/test/claude'),patch('skilldesk.providers.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout='{"is_error":true,"result":"No login"}',stderr='')):
     with self.assertRaises(RuntimeError):p('brief',{})
-   with patch('providers.executable',return_value=None):
+   with patch('skilldesk.providers.executable',return_value=None):
     with self.assertRaises(RuntimeError):p('brief',{})
  def test_provider_setting_and_invalid_choice(self):
   with tempfile.TemporaryDirectory() as tmp:
    settings=Path(tmp)/'settings.json';p=AuthorProvider(settings)
-   with patch('providers.executable',return_value='/test/claude'):p.select('claude')
+   with patch('skilldesk.providers.executable',return_value='/test/claude'):p.select('claude')
    self.assertEqual(AuthorProvider(settings).name,'claude')
    with self.assertRaises(ValueError):p.select('unknown')
  def test_claude_create_sets_invocation_metadata(self):
@@ -83,7 +83,7 @@ class RecommendationProviderTests(unittest.TestCase):
  def test_analysis_uses_selected_agent_without_changing_authoring_preference(self):
   with tempfile.TemporaryDirectory() as tmp:
    p=AuthorProvider(Path(tmp)/'settings.json');p.name='codex'
-   with patch('providers.executable',return_value='/test/claude'),patch('providers.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout=json.dumps({'structured_output':{'summary':'ok','recommendations':[]}}),stderr='')) as run:
+   with patch('skilldesk.providers.executable',return_value='/test/claude'),patch('skilldesk.providers.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout=json.dumps({'structured_output':{'summary':'ok','recommendations':[]}}),stderr='')) as run:
     result=p.generate('reviewed sample',{},provider='claude',analysis=True)
     args,kwargs=run.call_args
     self.assertEqual(p.name,'codex');self.assertEqual(result['summary'],'ok')
@@ -95,7 +95,7 @@ class RecommendationProviderTests(unittest.TestCase):
    def complete(cmd,**kwargs):
     Path(cmd[cmd.index('-o')+1]).write_text('{"summary":"ok","recommendations":[]}')
     return SimpleNamespace(returncode=0,stdout='',stderr='')
-   with patch('providers.executable',return_value='/test/codex'),patch('providers.subprocess.run',side_effect=complete) as run:
+   with patch('skilldesk.providers.executable',return_value='/test/codex'),patch('skilldesk.providers.subprocess.run',side_effect=complete) as run:
     p.generate('reviewed sample',{},provider='codex',analysis=True)
     cmd=run.call_args.args[0]
     self.assertIn('--ignore-user-config',cmd);self.assertIn('--ephemeral',cmd)
@@ -106,10 +106,10 @@ class RecommendationProviderTests(unittest.TestCase):
  def test_analysis_error_does_not_echo_provider_output(self):
   with tempfile.TemporaryDirectory() as tmp:
    p=AuthorProvider(Path(tmp)/'settings.json')
-   with patch('providers.executable',return_value='/test/codex'),patch('providers.subprocess.run',return_value=SimpleNamespace(returncode=1,stdout='',stderr='PRIVATE USAGE CONTENT')):
+   with patch('skilldesk.providers.executable',return_value='/test/codex'),patch('skilldesk.providers.subprocess.run',return_value=SimpleNamespace(returncode=1,stdout='',stderr='PRIVATE USAGE CONTENT')):
     with self.assertRaises(RuntimeError) as raised:p.generate('sample',{},provider='codex',analysis=True)
     self.assertNotIn('PRIVATE',str(raised.exception))
-   with patch('providers.executable',return_value='/test/claude'),patch('providers.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout=json.dumps({'is_error':True,'result':'PRIVATE USAGE CONTENT'}),stderr='')):
+   with patch('skilldesk.providers.executable',return_value='/test/claude'),patch('skilldesk.providers.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout=json.dumps({'is_error':True,'result':'PRIVATE USAGE CONTENT'}),stderr='')):
     with self.assertRaises(RuntimeError) as raised:p.generate('sample',{},provider='claude',analysis=True)
     self.assertNotIn('PRIVATE',str(raised.exception))
 
@@ -117,23 +117,23 @@ if __name__=='__main__':unittest.main()
 
 class AdditionalProviderTests(unittest.TestCase):
  def setUp(self):
-  patcher=patch('providers.opencode_support.capabilities',return_value={'standalone':True,'compatible':True});patcher.start();self.addCleanup(patcher.stop)
+  patcher=patch('skilldesk.providers.opencode_support.capabilities',return_value={'standalone':True,'compatible':True});patcher.start();self.addCleanup(patcher.stop)
  def test_opencode_combines_text_events_without_tool_output(self):
   with tempfile.TemporaryDirectory() as tmp:
    provider=AuthorProvider(Path(tmp)/'settings.json')
    output='\n'.join(map(json.dumps,[{'type':'step_start'},{'type':'text','part':{'text':'{"skill_md":'}},{'type':'tool_result','part':{'text':'PRIVATE TOOL'}},{'type':'text','part':{'text':'"result"}'}},{'type':'step_finish'}]))
-   with patch('providers.executable',return_value='/fixture/opencode'),patch('providers.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout=output,stderr='')):
+   with patch('skilldesk.providers.executable',return_value='/fixture/opencode'),patch('skilldesk.providers.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout=output,stderr='')):
     self.assertEqual(provider.generate('brief',{},provider='opencode'),{'skill_md':'result'})
  def test_no_inherited_api_key_overrides(self):
   with tempfile.TemporaryDirectory() as tmp:
    provider=AuthorProvider(Path(tmp)/'settings.json')
-   with patch.dict('os.environ',{'CURSOR_API_KEY':'PRIVATE','OPENAI_API_KEY':'PRIVATE','DEEPSEEK_API_KEY':'PRIVATE'}),patch('providers.executable',return_value='/fixture/cursor'),patch('providers.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout='{"subtype":"success","result":"{}"}',stderr='')) as run:
+   with patch.dict('os.environ',{'CURSOR_API_KEY':'PRIVATE','OPENAI_API_KEY':'PRIVATE','DEEPSEEK_API_KEY':'PRIVATE'}),patch('skilldesk.providers.executable',return_value='/fixture/cursor'),patch('skilldesk.providers.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout='{"subtype":"success","result":"{}"}',stderr='')) as run:
     provider.generate('brief',{},provider='cursor')
     for key in ['CURSOR_API_KEY','OPENAI_API_KEY','DEEPSEEK_API_KEY']:self.assertNotIn(key,run.call_args.kwargs['env'])
  def test_model_settings_are_validated_on_load_and_save(self):
   with tempfile.TemporaryDirectory() as tmp:
    settings=Path(tmp)/'settings.json';settings.write_text(json.dumps({'provider':'opencode','models':{'opencode':'broken','unknown':'private','cursor':{'key':'private'}}}))
    provider=AuthorProvider(settings);self.assertEqual(provider.models,{})
-   with patch('providers.executable',return_value='/fixture/opencode'):
+   with patch('skilldesk.providers.executable',return_value='/fixture/opencode'):
     with self.assertRaisesRegex(ValueError,'provider/model'):provider.select('opencode','missing-provider')
     provider.select('opencode','provider/model');provider.select('opencode','');self.assertEqual(provider.models['opencode'],'')

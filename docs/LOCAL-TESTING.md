@@ -4,7 +4,7 @@ Run automated checks before testing with a signed-in agent:
 
 ```sh
 .venv/bin/python -m unittest discover -s tests
-.venv/bin/python scripts/check_version.py
+npm run check
 .venv/bin/python scripts/sync_ui_assets.py --check
 ```
 

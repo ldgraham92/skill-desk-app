@@ -8,12 +8,12 @@ import time
 import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
 import test_maintenance as foundation
-from workbench_api import Workbench
-from projects import Projects
-from recommendations import Recommendations
-from management import metadata
+from skilldesk.workbench_api import Workbench
+from skilldesk.projects import Projects
+from skilldesk.recommendations import Recommendations
+from skilldesk.management import metadata
 import threading
 
 class FakeCatalog:
@@ -43,7 +43,7 @@ class RouteTests(unittest.TestCase):
   self.assertFalse(self.root.is_symlink())
  def test_windows_relocation_is_rejected_without_changing_files(self):
   folder=self.install();w=self.workbench();target=self.base/'relocated'
-  with patch('workbench_api.os',SimpleNamespace(name='nt')):
+  with patch('skilldesk.workbench_api.os',SimpleNamespace(name='nt')):
    with self.assertRaisesRegex(ValueError,'Windows directory-link'):
     w.handle(dict(op='relocate-preview',path=str(target)))
   self.assertFalse(target.exists());self.assertFalse(self.root.is_symlink())

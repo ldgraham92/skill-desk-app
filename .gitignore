@@ -1,4 +1,4 @@
-.venv/
+.venv*/
 node_modules/
 src-tauri/target/
 src-tauri/binaries/
@@ -16,7 +16,19 @@ __pycache__/
 *.p12
 *.key
 *.spec
-marketing/*.zip
+marketing/
+/index.html
+/docs/MARKETING.md
 release-assets/
 
 src-tauri/gen/
+
+# Private local exports and historical handoff material
+/skills/
+/SKILLS-EXPORT.md
+/installation-manifest.json
+/SHA256SUMS.txt
+/OVERVIEW.md
+/INSTALL-ON-MAC.md
+/docs/*HANDOFF*.md
+*.egg-info/

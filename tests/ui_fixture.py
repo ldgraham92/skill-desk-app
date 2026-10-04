@@ -48,14 +48,14 @@ records['fixture-validation']=dict(action='recommend',status='failed',finished_a
 # A narrow environment and patched home isolate every library and history root.
 # The fake executable is the only CLI this process can select.
 env={'PATH':os.path.dirname(sys.executable)+os.pathsep+'/usr/bin:/bin','SKILL_DESK_HOME':str(state),'SKILL_DESK_TEST_MODE':'1','SKILL_DESK_NO_AUTHOR':'1'}
-sys.path.insert(0,str(ROOT/'scripts'))
+sys.path.insert(0,str(ROOT/'src'))
 with patch.dict(os.environ,env,clear=True),patch('pathlib.Path.home',return_value=BASE):
-    import providers
+    from skilldesk import providers
     with patch.object(providers,'executable',return_value=str(cli)):
-        import skill_desk
+        from skilldesk import skill_desk
         library=BASE/'skills';library.mkdir()
         catalog=skill_desk.Catalog(library,state/'catalog.json',roots=skill_desk.discovery_roots())
-        import upstream
+        from skilldesk import upstream
         def fixture_checkout(repo,ref,destination,progress=None):
             if repo!='https://github.com/fixture/skills':raise ValueError('Only synthetic repositories are available in this test instance.')
             destination.mkdir();folder=destination/'review-example';folder.mkdir()

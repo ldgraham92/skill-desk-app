@@ -14,18 +14,18 @@ from unittest.mock import Mock, patch
 from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT/'scripts'))
-import skill_desk
-from nearby import receiver_address, Session, Nearby
-from projects import Projects, project_destination
+sys.path.insert(0, str(ROOT/'src'))
+from skilldesk import skill_desk
+from skilldesk.nearby import receiver_address, Session, Nearby
+from skilldesk.projects import Projects, project_destination
 
 
 def handler_method(name, namespace):
-    tree = ast.parse((ROOT/'scripts/skill_desk.py').read_text())
+    tree = ast.parse((ROOT/'src/skilldesk/skill_desk.py').read_text())
     serve = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'serve')
     handler = next(n for n in serve.body if isinstance(n, ast.ClassDef) and n.name == 'Handler')
     method = next(n for n in handler.body if isinstance(n, ast.FunctionDef) and n.name == name)
-    exec(compile(ast.Module(body=[method], type_ignores=[]), str(ROOT/'scripts/skill_desk.py'), 'exec'), namespace)
+    exec(compile(ast.Module(body=[method], type_ignores=[]), str(ROOT/'src/skilldesk/skill_desk.py'), 'exec'), namespace)
     return namespace[name]
 
 
@@ -45,6 +45,16 @@ class Response:
 
 
 class SecurityBoundaryTests(unittest.TestCase):
+    def test_legacy_demo_redirects_to_local_app_without_website_assets(self):
+        get = handler_method('do_GET', dict(port=12345, unquote=unquote, urlsplit=urlsplit))
+        for path in ('/demo', '/demo/'):
+            response = Response(path)
+            response.send_header = Mock()
+            get(response)
+            self.assertEqual(response.status, 302)
+            response.send_header.assert_called_once_with('Location', '/')
+            self.assertEqual(response.wfile.getvalue(), b'')
+
     def test_assets_use_exact_routes_and_reject_link_escape(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -103,7 +113,7 @@ class SecurityBoundaryTests(unittest.TestCase):
     def test_receiver_address_rejects_unbounded_and_non_string_input_before_parsing(self):
         class Untrusted:
             def __str__(self): raise AssertionError('Must not stringify arbitrary values')
-        with patch('nearby.local_ip', side_effect=AssertionError('Must reject before IP parsing')):
+        with patch('skilldesk.nearby.local_ip', side_effect=AssertionError('Must reject before IP parsing')):
             for value in ('.'*350000, ' '*350000+'127.0.0.1:1', Untrusted(), None, {}):
                 with self.assertRaises(ValueError): receiver_address(value)
         for value in ('8.8.8.8:1', '127.0.0.1:0', '127.0.0.1:65536', '127.0.0.1:123456',
@@ -117,7 +127,7 @@ class SecurityBoundaryTests(unittest.TestCase):
         session.connection = Mock(side_effect=AssertionError('Invalid address must not connect'))
         with self.assertRaises(ValueError): session.probe('.'*350000)
         session.connection.assert_not_called()
-        with patch('nearby.Session') as constructor:
+        with patch('skilldesk.nearby.Session') as constructor:
             nearby = Nearby()
             self.assertFalse(nearby.active)
             constructor.assert_not_called()

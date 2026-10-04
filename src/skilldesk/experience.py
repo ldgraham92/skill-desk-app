@@ -1,7 +1,7 @@
 """Local tester feedback, recommendation choices and installation history."""
 import hashlib
 import json
-from durable_state import StateFile
+from .durable_state import StateFile
 from pathlib import Path
 import platform
 import secrets

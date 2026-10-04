@@ -1,8 +1,8 @@
 from pathlib import Path
 import sys,tempfile,unittest
-sys.path.insert(0,str(Path(__file__).resolve().parent.parent/'scripts'))
-from projects import Projects,project_destination
-from management import Manager
+sys.path.insert(0,str(Path(__file__).resolve().parent.parent/'src'))
+from skilldesk.projects import Projects,project_destination
+from skilldesk.management import Manager
 
 class ProjectTests(unittest.TestCase):
  def setUp(self):

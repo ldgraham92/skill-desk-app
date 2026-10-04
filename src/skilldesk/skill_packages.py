@@ -10,7 +10,7 @@ import tempfile
 import unicodedata
 import zipfile
 
-from management import inventory, validate_folder
+from .management import inventory, validate_folder
 
 MAX_BYTES = 100_000_000
 MAX_FILES = 10000

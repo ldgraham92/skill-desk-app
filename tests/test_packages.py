@@ -8,9 +8,9 @@ import tempfile
 import unittest
 import zipfile
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent/'scripts'))
-from management import Manager
-from skill_packages import export_package, import_package
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent/'src'))
+from skilldesk.management import Manager
+from skilldesk.skill_packages import export_package, import_package
 
 
 class PackageTests(unittest.TestCase):

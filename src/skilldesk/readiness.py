@@ -5,8 +5,8 @@ import os
 import re
 import subprocess
 import tempfile
-from providers import executable,LABELS
-from platform_support import command_prefix,subprocess_options
+from .providers import executable,LABELS
+from .platform_support import command_prefix,subprocess_options
 
 def check_agent(name):
     result=dict(id=name,label=LABELS[name],installed=False,signedIn=None,compatible=None,status='missing',version='',message='Install this CLI, sign in, and check again.',command={'codex':'codex login','claude':'claude auth login','opencode':'opencode auth login','cursor':'agent login'}[name])
@@ -23,7 +23,7 @@ def check_agent(name):
             if version.returncode:raise ValueError('CLI did not start')
             result['version']=match.group(0) if match else 'Unknown version'
             if name=='opencode':
-                from opencode_support import capabilities
+                from .opencode_support import capabilities
                 result['compatible']=capabilities(cli)['compatible']
                 result.update(status='unknown' if result['compatible'] else 'update',message='CLI starts. Choose an available model, then run the explicit connection test in Library settings. Free models may not require a paid account. History recommendations remain unavailable.',command='opencode models')
                 return result

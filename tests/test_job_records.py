@@ -12,9 +12,9 @@ from unittest.mock import patch
 from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT/'scripts'))
-from management import Manager
-from recommendations import Recommendations
+sys.path.insert(0, str(ROOT/'src'))
+from skilldesk.management import Manager
+from skilldesk.recommendations import Recommendations
 
 
 class JobRecordTests(unittest.TestCase):
@@ -45,12 +45,12 @@ class JobRecordTests(unittest.TestCase):
 
     def get(self, manager, token):
         # Execute the actual HTTP method without starting the application/server.
-        tree = ast.parse((ROOT/'scripts/skill_desk.py').read_text())
+        tree = ast.parse((ROOT/'src/skilldesk/skill_desk.py').read_text())
         serve = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'serve')
         handler = next(n for n in serve.body if isinstance(n, ast.ClassDef) and n.name == 'Handler')
         method = next(n for n in handler.body if isinstance(n, ast.FunctionDef) and n.name == 'do_GET')
         namespace = dict(manager=manager, port=12345, json=json, time=time, unquote=unquote, urlsplit=urlsplit)
-        exec(compile(ast.Module(body=[method], type_ignores=[]), str(ROOT/'scripts/skill_desk.py'), 'exec'), namespace)
+        exec(compile(ast.Module(body=[method], type_ignores=[]), str(ROOT/'src/skilldesk/skill_desk.py'), 'exec'), namespace)
         class Response:
             headers = {'Host': '127.0.0.1:12345'}
             path = '/api/jobs/'+token

@@ -7,11 +7,11 @@ import re
 import shutil
 import tempfile
 import uuid
-from advanced_drafts import file_diff
-from durable_state import atomic_json
-from experience import tree_digest
-from job_control import checkpoint, run_process
-from platform_support import subprocess_options
+from .advanced_drafts import file_diff
+from .durable_state import atomic_json
+from .experience import tree_digest
+from .job_control import checkpoint, run_process
+from .platform_support import subprocess_options
 
 
 def checkout(repo, ref, destination, progress=None):
@@ -29,7 +29,7 @@ def checkout(repo, ref, destination, progress=None):
 
 
 def bytes_map(folder):
-    from management import inventory
+    from .management import inventory
     return {name:(folder/name).read_bytes() for name in inventory(folder)}
 
 
@@ -67,7 +67,7 @@ class Upstream:
 
     def bootstrap(self,folder,progress=None):
         """Recover the recorded original revision for imports made before baselines existed."""
-        from management import metadata,validate_folder
+        from .management import metadata,validate_folder
         folder=Path(folder);manager=self.manager
         record=dict(manager.registry.get(str(folder),{}))
         match=re.fullmatch(r'(https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@([a-f0-9]{40})(?::(.*))?',record.get('source',''))
@@ -119,7 +119,7 @@ class Upstream:
         return self.provenance(folder)
 
     def check(self,folder,ref='',progress=None):
-        from management import validate_folder
+        from .management import validate_folder
         manager=self.manager;folder=Path(folder)
         with manager.lock:
             record=dict(manager.registry.get(str(folder),{}));origin=record.get('upstream')
@@ -144,7 +144,7 @@ class Upstream:
             return review
 
     def prepare(self,data):
-        from management import validate_folder
+        from .management import validate_folder
         row=self.previews.get(data.get('id'))
         if not row:raise ValueError('Update review expired. Check again.')
         review=row['review'];folder=Path(review['folder'])

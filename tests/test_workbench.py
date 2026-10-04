@@ -10,13 +10,13 @@ import time
 import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from management import Manager
-from usage_history import scan
-from library_review import compare,health
-from job_control import cancellation,Cancelled
-from providers import AuthorProvider,generation_error,valid_model
-import opencode_support
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
+from skilldesk.management import Manager
+from skilldesk.usage_history import scan
+from skilldesk.library_review import compare,health
+from skilldesk.job_control import cancellation,Cancelled
+from skilldesk.providers import AuthorProvider,generation_error,valid_model
+from skilldesk import opencode_support
 
 MD='---\nname: draft-example\ndescription: Use for reviewing a draft.\n---\nReview the sample.'
 class WorkbenchTests(unittest.TestCase):
@@ -70,14 +70,14 @@ class WorkbenchTests(unittest.TestCase):
   with self.assertRaisesRegex(ValueError,'registered'):self.manager.reopen_draft({'id':saved['saved']},set())
   with self.assertRaises(ValueError):self.manager.delete_saved_draft({'id':'../archive'})
  def test_saved_revision_paths_are_checked_before_staging_or_reading(self):
-  from experience import tree_digest
+  from skilldesk.experience import tree_digest
   saved=self.manager.save_draft(self.draft());base=self.manager.saved_path({'id':saved['saved']})
   record=json.loads((base/'record.json').read_text());before=set(self.manager.drafts)
   outside=self.base/'outside';outside.mkdir();(outside/'SKILL.md').write_text(MD)
   for index in (str(outside),'../../outside',-1,True,10):
    record['revisions']=[dict(index=index,digest=tree_digest(outside))]
    (base/'record.json').write_text(json.dumps(record))
-   with self.subTest(index=index),patch('draft_tools.tree_digest',side_effect=AssertionError('Read an unchecked revision')):
+   with self.subTest(index=index),patch('skilldesk.draft_tools.tree_digest',side_effect=AssertionError('Read an unchecked revision')):
     with self.assertRaisesRegex(ValueError,'revision'):self.manager.reopen_draft({'id':saved['saved']},{self.manager.root})
    self.assertEqual(set(self.manager.drafts),before)
   revisions=base/'revisions';revisions.mkdir();(revisions/'0').symlink_to(outside,target_is_directory=True)
@@ -117,7 +117,7 @@ class WorkbenchTests(unittest.TestCase):
   self.assertEqual(json.loads(opencode_support.text_result('\n'.join(map(json.dumps,events)))),{'ok':True})
  def test_model_listing_does_not_infer_prices_from_names(self):
   cli=self.base/'opencode';cli.write_text('fixture')
-  with patch('opencode_support.capabilities',return_value={'standalone':True}),patch('opencode_support.run_process',return_value=SimpleNamespace(returncode=0,stdout='opencode/a-free\nopencode/a-free\nnot a model\nprovider/model#fast\n')) as run:
+  with patch('skilldesk.opencode_support.capabilities',return_value={'standalone':True}),patch('skilldesk.opencode_support.run_process',return_value=SimpleNamespace(returncode=0,stdout='opencode/a-free\nopencode/a-free\nnot a model\nprovider/model#fast\n')) as run:
    result=opencode_support.models(str(cli));self.assertEqual(len(result['models']),2);self.assertIsNone(result['models'][0]['free']);self.assertIn('--standalone',run.call_args.args[0])
   self.assertTrue(valid_model('opencode','provider/model#fast'))
  def test_synthetic_connection_test_does_not_claim_success_for_bad_response(self):
@@ -135,13 +135,13 @@ class WorkbenchTests(unittest.TestCase):
   for i in range(30):
    records=[dict(type='session_meta',payload={'cwd':str(project/'src')}),dict(type='event_msg',timestamp=now-i,payload={'type':'user_message','message':f'Request {i} to debug a synthetic database'})]+[dict(type='irrelevant',padding='x'*1000)]*200
    (sessions/f'{i}.jsonl').write_text('\n'.join(map(json.dumps,records)))
-  with patch('usage_history.MAX_SCAN_BYTES',600000):sample=scan(['codex'],locations={'codex':root},now=now,registered_projects=[dict(path=str(project),name='Registered repository')])
+  with patch('skilldesk.usage_history.MAX_SCAN_BYTES',600000):sample=scan(['codex'],locations={'codex':root},now=now,registered_projects=[dict(path=str(project),name='Registered repository')])
   self.assertEqual(sample['coverage']['codex']['sessionsScanned'],30)
   self.assertEqual(sample['found'],30);self.assertTrue(all(r['project']=='Registered repository' for r in sample['excerpts']))
   self.assertEqual(sum(r['found'] for r in sample['breakdown']),30)
  def test_timezones_archives_and_cutoff(self):
   root=self.base/'codex';archive=root/'archived_sessions';archive.mkdir(parents=True)
-  from usage_history import timestamp
+  from skilldesk.usage_history import timestamp
   now=timestamp('2026-09-24T00:00:00Z')
   rows=[dict(type='event_msg',timestamp=date,payload={'type':'user_message','message':text}) for date,text in [('2026-09-24T02:00:00+02:00','At exactly current UTC time'),('2026-09-17T00:00:00Z','At exactly the cutoff time'),('2026-09-16T23:59:59Z','Too old for this sample'),('2026-09-24T00:06:00Z','Future time beyond allowance')]]
   (archive/'one.jsonl').write_text('\n'.join(map(json.dumps,rows)))
@@ -158,7 +158,7 @@ class WorkbenchTests(unittest.TestCase):
   self.assertEqual(sample['found'],1);self.assertNotIn('PRIVATE',json.dumps(sample))
 
  def test_supporting_reference_warning_preserves_legitimate_cross_skill_template(self):
-  from management import validate_folder
+  from skilldesk.management import validate_folder
   d=self.draft();folder=self.manager.drafts[d['draft']]['paths']['0']
   (folder/'template.md').write_text('[Another skill](../another/SKILL.md)')
   result=validate_folder(folder);self.assertEqual(len(result['warnings']),1)

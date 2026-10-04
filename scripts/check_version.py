@@ -14,7 +14,7 @@ assert cargo_version == version, 'Cargo version differs'
 cargo_lock = (root/'src-tauri/Cargo.lock').read_text()
 assert re.search(r'name = "skill-desk"\nversion = "([^"]+)"', cargo_lock).group(1) == version, 'Cargo lock version differs'
 assert json.loads((root/'web/release.json').read_text())['version'] == version, 'What’s New version differs'
-assert re.search(r"VERSION='([^']+)'", (root/'scripts/experience.py').read_text()).group(1) == version, 'Feedback version differs'
+assert re.search(r"VERSION='([^']+)'", (root/'src/skilldesk/experience.py').read_text()).group(1) == version, 'Feedback version differs'
 ref = os.environ.get('GITHUB_REF', '')
 if ref.startswith('refs/tags/'):
     assert ref == 'refs/tags/v'+version, f'Tag does not match package version {version}'

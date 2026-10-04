@@ -5,7 +5,7 @@
 
 Skill-Desk is a free, open-source desktop manager for personal AI skills. It keeps your skill files on your machine and uses your installed, signed-in Codex, Claude Code, OpenCode, or Cursor CLI when you ask it to author a skill. Reference guidance is generated for new or changed skills and cached locally.
 
-**[Download a desktop release](https://github.com/ldgraham92/skill-desk/releases)** · **[Report a bug](https://github.com/ldgraham92/skill-desk/issues/new/choose)** · **[Try the standalone demo](marketing/index.html)**
+**[Download a desktop release](https://github.com/ldgraham92/skill-desk/releases)** · **[Report a bug](https://github.com/ldgraham92/skill-desk/issues/new/choose)**
 
 ## What it does
 
@@ -52,22 +52,18 @@ You can review the source, run Skill-Desk locally, and compile your own installe
 > [!NOTE]
 > Windows publisher signing is not configured for these previews. Release updates carry a separate signature that Skill-Desk verifies. Building from source is available if you prefer it; it does not add an OS publisher signature.
 
-## Hosting the marketing site
-
-Deploy only `marketing/` as a static website. In Coolify, choose the Static build pack and set Base Directory to `/marketing`. See [marketing deployment instructions](docs/MARKETING.md). The repository root `index.html` is also a generated copy of the marketing page; the desktop template lives in `web/app.html` and contains no bundled skill entries.
-
 ## Development
 
-Skill-Desk uses Tauri, HTML/CSS/JavaScript, and a bundled Python service. See [DESKTOP.md](DESKTOP.md) for platform prerequisites and full build instructions.
+Skill-Desk uses Tauri, HTML/CSS/JavaScript, and a bundled Python service. Runtime modules live in `src/skilldesk/`, app UI source in `web/`, native code in `src-tauri/`, and developer commands in `scripts/`. The application builds independently of the separate website repository. See [architecture](docs/ARCHITECTURE.md) for the source map. See [DESKTOP.md](DESKTOP.md) for platform prerequisites and full build instructions.
 
 ```sh
 python -m venv .venv
 # Activate the virtual environment for your shell first.
 python -m pip install -r requirements-build.txt
 npm ci
-python scripts/check_version.py
+npm run check
 python -m unittest discover -s tests -v
-python scripts/build_sidecar.py
+npm run build
 python scripts/smoke_sidecar.py
 npm run desktop:dev
 ```

@@ -10,10 +10,10 @@ import tempfile
 import time
 import uuid
 import zipfile
-from durable_state import atomic_json,atomic_bytes,digest
-from experience import tree_digest
-from job_control import checkpoint
-from skill_packages import portable_path
+from .durable_state import atomic_json,atomic_bytes,digest
+from .experience import tree_digest
+from .job_control import checkpoint
+from .skill_packages import portable_path
 
 SETTINGS={'preferences.json':dict,'projects.json':list,'experience.json':dict,'organization.json':dict,'provider.json':dict}
 MAX_BYTES=100_000_000
@@ -23,7 +23,7 @@ class WorkspaceBackup:
     def __init__(self,manager):self.manager=manager;self.previews={}
 
     def export(self,entries,include_settings=False,include_drafts=False):
-        from management import inventory
+        from .management import inventory
         objects=[];manager=self.manager
         for entry in entries:
             objects.append(dict(kind='skill',name=entry['name'],destination=str(entry['folder']),folder=Path(entry['folder']),origin=dict(manager.registry.get(str(entry['folder']),{}))))
@@ -61,7 +61,7 @@ class WorkspaceBackup:
         return dict(filename='workspace.skilldesk-backup.zip',data=base64.b64encode(raw).decode(),bytes=len(raw),manifest=manifest)
 
     def preview(self,data,allowed_roots):
-        from management import validate_folder
+        from .management import validate_folder
         if len(self.previews)>=3:raise ValueError('Discard an earlier restore review first.')
         try:raw=base64.b64decode(data.get('data',''),validate=True)
         except (ValueError,TypeError):raise ValueError('Invalid backup encoding.')

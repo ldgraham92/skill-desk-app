@@ -56,7 +56,3 @@ This manages `~/.claude/skills` instead. Existing libraries are never automatica
 The Claude adapter uses `claude --print --output-format json --json-schema` and reads `structured_output`. It disables built-in and MCP tools for authoring, disables session persistence, and excludes inherited API credential/provider overrides so the CLI can use its saved login. Update Claude Code if those flags are unavailable. Provider preferences are saved in `~/Library/Application Support/Skill-Desk/provider.json`.
 
 Verified against [Claude Code CLI reference](https://code.claude.com/docs/en/cli-reference), [programmatic usage](https://code.claude.com/docs/en/headless), and [personal skill locations](https://code.claude.com/docs/en/skills). The integration has adapter and policy tests; live Claude-account verification has not been performed on this Mac because its CLI is not installed.
-
-## Shareable demo
-
-Send `marketing/index.html` to friends. It contains its own HTML, CSS, JavaScript and sample data. Double-click to open it locally. It does not contact either provider, read local skills, install anything, or include your personal skill data. Interactive operations affect only the page's sample library. `marketing/skilldesk-demo.png` is a static overview. Print / save PDF uses the browser print dialog. The live application is separate from this demo file.

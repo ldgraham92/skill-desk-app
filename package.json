@@ -5,10 +5,16 @@
   "scripts": {
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",
-    "icons": "tauri icon assets/skilldesk.png"
+    "icons": "tauri icon assets/skilldesk.png",
+    "test": "python -m unittest discover -s tests -v",
+    "check": "python scripts/check_repository.py && python scripts/check_version.py && python scripts/sync_ui_assets.py --check && npm run format:check",
+    "build": "python scripts/check_repository.py && python scripts/sync_ui_assets.py && python scripts/build_sidecar.py",
+    "format": "prettier --write \"web/*.js\" \"web/*.css\" src-tauri/src/update_indicator.js",
+    "format:check": "prettier --check \"web/*.js\" \"web/*.css\" src-tauri/src/update_indicator.js"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.11.5"
+    "@tauri-apps/cli": "^2.11.5",
+    "prettier": "3.9.6"
   },
   "license": "MIT",
   "repository": {

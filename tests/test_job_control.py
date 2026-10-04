@@ -7,9 +7,9 @@ import tempfile
 import threading
 import time
 import unittest
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from job_control import cancellation, run_process, Cancelled
-from management import Manager
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
+from skilldesk.job_control import cancellation, run_process, Cancelled
+from skilldesk.management import Manager
 
 class JobTests(unittest.TestCase):
     def test_input_survives_polling_and_timeout_stops_process(self):

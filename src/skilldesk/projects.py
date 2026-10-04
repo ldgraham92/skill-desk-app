@@ -1,10 +1,10 @@
 """Persist explicitly onboarded repositories without modifying their contents."""
 import json
-from durable_state import StateFile
+from .durable_state import StateFile
 from pathlib import Path
 import secrets
 import threading
-from agents import LABELS, PROJECT_FOLDERS
+from .agents import LABELS, PROJECT_FOLDERS
 
 
 def project_destination(path, agent):

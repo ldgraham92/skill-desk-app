@@ -5,8 +5,8 @@ import tempfile
 import unittest
 import threading
 import time
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'scripts'))
-from management import Manager, fingerprint
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'src'))
+from skilldesk.management import Manager, fingerprint
 
 MD = '---\nname: isolated-test-skill\ndescription: Use for isolated lifecycle tests.\n---\n\n# Test\nRecord the requested result.\n'
 

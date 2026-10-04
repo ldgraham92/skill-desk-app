@@ -1,8 +1,8 @@
 """Synthetic large-library and metadata-index measurements; no private history."""
 import json,sys,tempfile,time,tracemalloc
 from pathlib import Path
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from library_tools import LibraryTools
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
+from skilldesk.library_tools import LibraryTools
 
 with tempfile.TemporaryDirectory(prefix='skilldesk-benchmark-') as work:
  base=Path(work);entries=[]

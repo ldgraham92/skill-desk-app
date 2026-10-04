@@ -8,11 +8,11 @@ import tempfile
 import threading
 import re
 import time
-import opencode_support
-from job_control import run_process
-from agents import LABELS, HISTORY_AGENTS, personal_root, PROJECT_FOLDERS, compatible_agents
+from . import opencode_support
+from .job_control import run_process
+from .agents import LABELS, HISTORY_AGENTS, personal_root, PROJECT_FOLDERS, compatible_agents
 
-from platform_support import data_dir, command_prefix, subprocess_options
+from .platform_support import data_dir, command_prefix, subprocess_options
 SETTINGS = data_dir()/'provider.json'
 
 

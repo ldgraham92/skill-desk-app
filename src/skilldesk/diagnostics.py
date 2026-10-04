@@ -1,9 +1,9 @@
 """Allowlisted local support metadata. Never include free-form user content."""
 import platform
 import time
-from experience import VERSION
-from agents import LABELS, HISTORY_AGENTS
-from providers import executable
+from .experience import VERSION
+from .agents import LABELS, HISTORY_AGENTS
+from .providers import executable
 
 
 def diagnostic_report(catalog,manager,projects,provider):

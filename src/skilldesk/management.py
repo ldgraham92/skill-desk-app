@@ -1,6 +1,6 @@
 """Local skill lifecycle operations. Imported content is data, never executed."""
 from datetime import datetime, timezone
-from agents import LABELS as AGENT_LABELS, native_agent, compatible_agents
+from .agents import LABELS as AGENT_LABELS, native_agent, compatible_agents
 import hashlib
 import difflib
 import json
@@ -9,8 +9,8 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
-from job_control import cancellation, checkpoint, Cancelled, run_process
-from recommendation_errors import RecommendationError, FAILURE_MESSAGES, safe_failure_fields
+from .job_control import cancellation, checkpoint, Cancelled, run_process
+from .recommendation_errors import RecommendationError, FAILURE_MESSAGES, safe_failure_fields
 import tempfile
 import threading
 import time
@@ -18,10 +18,10 @@ import uuid
 from urllib.parse import urlparse, unquote
 import yaml
 
-from platform_support import data_dir, subprocess_options
-from experience import Experience, tree_digest
-from durable_state import StateFile, atomic_json
-from transactions import Transactions
+from .platform_support import data_dir, subprocess_options
+from .experience import Experience, tree_digest
+from .durable_state import StateFile, atomic_json
+from .transactions import Transactions
 STATE = data_dir()
 NAME = re.compile(r'^[a-z0-9]+(?:-[a-z0-9]+)*$')
 KINDS = ['User Created', 'Repo Installed', 'Markdown Imported', 'Harness Copy', 'Package Imported', 'Existing']
@@ -113,7 +113,7 @@ def fingerprint(folder):
     return h.hexdigest()
 
 
-from draft_tools import DraftTools
+from .draft_tools import DraftTools
 
 
 class Manager(DraftTools):
@@ -140,7 +140,7 @@ class Manager(DraftTools):
         self.undo_previews={}
         self.temporary = tempfile.TemporaryDirectory(prefix='skill-desk-drafts-')
         self.busy = False
-        from upstream import Upstream
+        from .upstream import Upstream
         self.upstream = Upstream(self)
 
     def save(self):
@@ -284,7 +284,7 @@ class Manager(DraftTools):
                 details = validate_folder(folder)
                 destination = base / str(i)
                 shutil.copytree(folder, destination, ignore=shutil.ignore_patterns('.git'))
-                from library_tools import quality
+                from .library_tools import quality
                 details['compatibility']=quality(destination,compatible_agents(target_root or self.root))
                 details['treeDigest'] = tree_digest(destination)
                 details['candidate'] = str(i)
@@ -328,7 +328,7 @@ class Manager(DraftTools):
             raise ValueError('Invalid repository ref or folder.')
         with tempfile.TemporaryDirectory(prefix='skill-desk-repo-') as tmp:
             checkout = Path(tmp) / 'repo'
-            from upstream import checkout as fetch_repository
+            from .upstream import checkout as fetch_repository
             if progress: progress('downloading','Downloading the repository')
             commit=fetch_repository(repo,ref,checkout,progress)
             if progress: progress('validating','Checking skill files and installation conflicts')
@@ -426,7 +426,7 @@ class Manager(DraftTools):
             root=draft.get('target_root') or self.root
             if not self.root_link_allowed(root) or str(root.resolve())!=review['resolvedRoot']: raise ValueError('Library location changed. Prepare the replacement again.')
             if draft.get('project_path'):
-                from projects import project_destination
+                from .projects import project_destination
                 if project_destination(draft['project_path'],draft['target_agent'])!=root: raise ValueError('Project destination changed.')
             if draft.get('updateExpected') and tree_digest(folder)!=draft['updateExpected']: raise ValueError('Installed files changed since the upstream review. Check again.')
             if tree_digest(folder)!=review['fingerprint']: raise ValueError('The installed skill changed after review. Compare again before replacing.')
@@ -462,7 +462,7 @@ class Manager(DraftTools):
             if data.get('reviewDigest') and tree_digest(folder)!=data['reviewDigest']:raise ValueError('Draft changed in another window. Review it again before installing.')
             root = draft.get('target_root') or self.root
             if draft.get('project_path'):
-                from projects import project_destination
+                from .projects import project_destination
                 if project_destination(draft['project_path'],draft['target_agent']) != root: raise ValueError('Project destination changed. Preview again.')
             conflict = self.conflict(details['name'], root, draft.get('conflict_roots'))
             if conflict: raise ValueError(conflict)
@@ -551,7 +551,7 @@ class Manager(DraftTools):
             root=Path(record['root'])
             if record.get('resolved_root') and str(root.resolve())!=record['resolved_root']: raise ValueError('Archive destination changed. The archived files are preserved.')
             if record.get('project_path'):
-                from projects import project_destination
+                from .projects import project_destination
                 if project_destination(record['project_path'],record['target_agent'])!=root: raise ValueError('Project destination changed.')
             conflict = self.conflict(record['id'],root,[root])
             if conflict: raise ValueError(conflict)
@@ -580,7 +580,7 @@ class Manager(DraftTools):
         root=Path(record['root'])
         if str(root.resolve())!=record['resolved_root']:raise ValueError('The installation location changed. Its files will be preserved.')
         if record.get('project_path'):
-            from projects import project_destination
+            from .projects import project_destination
             project_destination(record['project_path'],record['agent'])
         folder=root/record['name']
         if self.registry.get(str(folder),{}).get('installation_id')!=record['id']:raise ValueError('This installation is no longer the current copy. Its files will be preserved.')

@@ -6,10 +6,10 @@ HOME/XDG locations. No account keys, real history, or paid models are used.
 import json,threading,sys,os,tempfile,subprocess,time,psutil,sqlite3
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from job_control import run_process,cancellation,Cancelled
-from opencode_support import configure,text_result
-from providers import executable
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
+from skilldesk.job_control import run_process,cancellation,Cancelled
+from skilldesk.opencode_support import configure,text_result
+from skilldesk.providers import executable
 CLI=executable('opencode')
 if not CLI: raise SystemExit('Install OpenCode V2 to run these optional checks.')
 seen=[]

@@ -10,13 +10,13 @@ import threading
 import unittest
 from unittest.mock import patch
 import zipfile
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from durable_state import StateFile,atomic_json
-from management import Manager
-from experience import tree_digest
-from library_tools import LibraryTools,quality
-from upstream import merge_files
-from workspace_backup import WorkspaceBackup
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
+from skilldesk.durable_state import StateFile,atomic_json
+from skilldesk.management import Manager
+from skilldesk.experience import tree_digest
+from skilldesk.library_tools import LibraryTools,quality
+from skilldesk.upstream import merge_files
+from skilldesk.workspace_backup import WorkspaceBackup
 
 TEXT='---\nname: example\ndescription: Use this skill to verify a local maintenance workflow.\n---\nFirst line.\nMiddle line.\nLast line.\n'
 
@@ -82,7 +82,7 @@ class MaintenanceTests(unittest.TestCase):
   d=self.draft();self.m.drafts[d['draft']]['upstream']={'0':dict(repo='https://github.com/example/repo',ref='',commit='old',path='skill')};self.m.install(dict(draft=d['draft'],candidate='0'));folder=self.root/'example';(folder/'notes.txt').write_text('local notes')
   def fake(repo,ref,dest,progress=None):
    shutil.copytree(self.source,dest/'skill');(dest/'skill'/'SKILL.md').write_text(TEXT+'Upstream addition.\n');return 'new'
-  with patch('upstream.checkout',side_effect=fake):review=self.m.upstream.check(folder)
+  with patch('skilldesk.upstream.checkout',side_effect=fake):review=self.m.upstream.check(folder)
   next=self.m.upstream.prepare(dict(id=review['id']));comparison=self.m.comparison(dict(draft=next['draft'],candidate='0'));self.m.replace(dict(draft=next['draft'],candidate='0',fingerprint=comparison['fingerprint']))
   self.assertEqual((folder/'notes.txt').read_text(),'local notes');self.assertIn('Upstream addition',(folder/'SKILL.md').read_text());self.assertTrue(self.m.upstream.provenance(folder)['localChanges'])
  def test_source_change_during_install_cannot_publish(self):
@@ -91,7 +91,7 @@ class MaintenanceTests(unittest.TestCase):
    result=real(src,dest,*a,**kw)
    if Path(dest)==self.root/'example':(folder/'notes.txt').write_text('changed during copy')
    return result
-  with patch('management.shutil.copytree',side_effect=copying):
+  with patch('skilldesk.management.shutil.copytree',side_effect=copying):
    with self.assertRaisesRegex(ValueError,'changed'):self.m.install(dict(draft=d['draft'],candidate='0'))
   self.assertFalse((self.root/'example').exists())
  def test_interrupted_operation_recovery_preserves_new_edits(self):
@@ -129,7 +129,7 @@ class MaintenanceTests(unittest.TestCase):
   folder=self.install();commit='a'*40;self.m.registry[str(folder)]=dict(kind='Repo Installed',source='https://github.com/example/repo@'+commit+':skill');self.m.save();(folder/'notes.txt').write_text('local edit')
   def fake(repo,ref,destination,progress=None):
    self.assertEqual(ref,commit);shutil.copytree(self.source,destination/'skill');return commit
-  with patch('upstream.checkout',side_effect=fake):result=self.m.upstream.bootstrap(folder)
+  with patch('skilldesk.upstream.checkout',side_effect=fake):result=self.m.upstream.bootstrap(folder)
   self.assertTrue(result['localChanges']);self.assertEqual(result['upstream']['commit'],commit);self.assertEqual((folder/'notes.txt').read_text(),'local edit')
   with self.assertRaisesRegex(ValueError,'full commit'):self.m.upstream.pin(folder,'main')
   self.assertEqual(self.m.upstream.pin(folder,'installed')['pin'],commit)

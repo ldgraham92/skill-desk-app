@@ -12,11 +12,11 @@ import time
 import unittest
 from urllib.parse import urlencode
 
-sys.path.insert(0,str(Path(__file__).resolve().parent.parent/'scripts'))
-from nearby import Session, PREFIX, local_ip
-from management import Manager
-from skill_packages import export_package, import_package
-from update_gate import UpdateGate
+sys.path.insert(0,str(Path(__file__).resolve().parent.parent/'src'))
+from skilldesk.nearby import Session, PREFIX, local_ip
+from skilldesk.management import Manager
+from skilldesk.skill_packages import export_package, import_package
+from skilldesk.update_gate import UpdateGate
 
 
 class NearbyTests(unittest.TestCase):

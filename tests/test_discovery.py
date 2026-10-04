@@ -4,12 +4,12 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'scripts'))
-from skill_desk import Catalog, discovery_roots
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'src'))
+from skilldesk.skill_desk import Catalog, discovery_roots
 
 class DiscoveryTests(unittest.TestCase):
     def test_new_agent_roots_and_compatibility(self):
-        from agents import personal_root, compatible_agents
+        from skilldesk.agents import personal_root, compatible_agents
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ,{},clear=True):
             home=Path(tmp).resolve()
             self.assertEqual(personal_root('opencode',home),home/'.config/opencode/skills')
@@ -24,7 +24,7 @@ class DiscoveryTests(unittest.TestCase):
             self.assertEqual(len(catalog.rows),2)
             self.assertEqual({r['harnesses'][0] for r in catalog.rows},{'opencode','cursor'})
     def test_default_catalog_reads_all_personal_libraries(self):
-        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {}, clear=True), patch('skill_desk.Path.home', side_effect=RuntimeError('No home available')):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {}, clear=True), patch('skilldesk.skill_desk.Path.home', side_effect=RuntimeError('No home available')):
             home = Path(tmp)
             for relative in ('.agents/skills', '.codex/skills', '.claude/skills'):
                 folder = home/relative/'same-name'; folder.mkdir(parents=True)
@@ -72,7 +72,7 @@ class DiscoveryTests(unittest.TestCase):
             self.assertEqual(catalog.rows[1]['harnesses'],['claude','cursor','opencode'])
 
     def test_cross_harness_preview_preserves_files_and_rechecks_conflicts(self):
-        from management import Manager
+        from skilldesk.management import Manager
         with tempfile.TemporaryDirectory() as tmp:
             home=Path(tmp).resolve();root=home/'.codex/skills';source=root/'example';source.mkdir(parents=True)
             (source/'SKILL.md').write_text('---\nname: example\ndescription: Test\n---\nRead [reference](reference.md).')

@@ -6,7 +6,7 @@ import shutil
 import tempfile
 import time
 import uuid
-from experience import tree_digest
+from .experience import tree_digest
 
 
 def file_diff(before, after, name):
@@ -57,8 +57,8 @@ class AdvancedDrafts:
 
     def file_changes(self,data):
         """Create a new validated preview. The original draft survives every error."""
-        from management import inventory,validate_folder
-        from skill_packages import portable_path
+        from .management import inventory,validate_folder
+        from .skill_packages import portable_path
         with self.lock:
             draft,folder=self.draft_candidate(data)
             expected=tree_digest(folder)
@@ -104,7 +104,7 @@ class AdvancedDrafts:
                 return result
 
     def replace_text(self,data):
-        from management import inventory
+        from .management import inventory
         _,folder=self.draft_candidate(data)
         find,replacement=data.get('find'),data.get('replacement')
         if not isinstance(find,str) or not find or len(find)>10000 or not isinstance(replacement,str) or len(replacement)>10000: raise ValueError('Enter bounded search and replacement text.')
@@ -119,6 +119,6 @@ class AdvancedDrafts:
         return self.file_changes(dict(data,changes=changes))
 
     def export_draft(self,data):
-        from skill_packages import export_package
+        from .skill_packages import export_package
         _,folder=self.draft_candidate(data)
         return export_package([dict(folder=folder)])

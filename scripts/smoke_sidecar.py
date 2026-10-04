@@ -40,14 +40,14 @@ def main():
                 with urllib.request.urlopen(url+path, timeout=5) as response: return response.read()
             page=get('/')
             assert b'/manage.js' in page and b'/experience.js' in page and b'/onboarding.js' in page
-            for asset in ['/experience.js','/workspace.js','/onboarding.js','/workbench.js','/maintenance.js','/walkthrough/library.png','/walkthrough/first-step.png']:
+            for asset in ['/library.js','/experience.js','/workspace.js','/onboarding.js','/workbench.js','/maintenance.js','/walkthrough/library.png','/walkthrough/first-step.png']:
                 assert get(asset), asset
             assert json.loads(get('/api/release'))['version']==VERSION
             assert len(json.loads(get('/api/collections')))==2
             token=json.loads(re.search(rb'window.skillDeskToken=(.*?);',page).group(1))
             request=urllib.request.Request(url+'/api/preferences', data=json.dumps({'saved':['smoke-test']}).encode(), headers={'Content-Type':'application/json','Origin':url,'X-Skill-Desk-Token':token})
             with urllib.request.urlopen(request,timeout=5) as response: assert response.status==200
-            assert b'let saved=["smoke-test"]' in get('/')
+            assert b'window.skillDeskSaved=["smoke-test"]' in get('/')
             assert json.loads((Path(tmp)/'state/preferences.json').read_text())['saved']==['smoke-test']
             request=urllib.request.Request(url+'/api/preferences', data=json.dumps({'theme':'light'}).encode(), headers={'Content-Type':'application/json','Origin':url,'X-Skill-Desk-Token':token})
             urllib.request.urlopen(request, timeout=10).read()

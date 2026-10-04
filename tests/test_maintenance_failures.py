@@ -8,13 +8,13 @@ import tempfile
 import threading
 import unittest
 from unittest.mock import patch
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from management import Manager
-from experience import tree_digest
-from skill_packages import export_package
-from upstream import checkout
-from durable_state import atomic_json
-from job_control import Cancelled,cancellation
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
+from skilldesk.management import Manager
+from skilldesk.experience import tree_digest
+from skilldesk.skill_packages import export_package
+from skilldesk.upstream import checkout
+from skilldesk.durable_state import atomic_json
+from skilldesk.job_control import Cancelled,cancellation
 import test_maintenance as foundation
 TEXT=foundation.TEXT
 
@@ -31,13 +31,13 @@ class FailureTests(unittest.TestCase):
     (Path(dest)/'partial.txt').write_text('partial')
     raise OSError(errno.ENOSPC,'Injected disk full')
    return real(src,dest,*args,**kwargs)
-  with patch('management.shutil.copytree',side_effect=copy):
+  with patch('skilldesk.management.shutil.copytree',side_effect=copy):
    with self.assertRaises(OSError):self.m.install(dict(draft=d['draft'],candidate='0'))
   self.assertFalse((self.root/'example').exists())
   record=self.m.transactions.records()[0];review=self.m.transactions.preview(record['id']);self.m.transactions.recover(record['id'],review['current'],'after');self.assertEqual((self.root/'example/SKILL.md').read_text(),TEXT)
  def test_permission_loss_preserves_installed_replacement(self):
   folder=self.install();d=self.draft();review=self.m.comparison(dict(draft=d['draft'],candidate='0'));old=tree_digest(folder)
-  with patch('transactions.shutil.copytree',side_effect=PermissionError('Injected permission loss')):
+  with patch('skilldesk.transactions.shutil.copytree',side_effect=PermissionError('Injected permission loss')):
    with self.assertRaises(PermissionError):self.m.replace(dict(draft=d['draft'],candidate='0',fingerprint=review['fingerprint']))
   self.assertEqual(tree_digest(folder),old)
  def test_registry_failure_rolls_back_install(self):
@@ -62,7 +62,7 @@ class FailureTests(unittest.TestCase):
   self.assertFalse(self.m.drafts)
  def test_offline_upstream_check_preserves_library(self):
   folder=self.install();before=tree_digest(folder)
-  with patch('upstream.run_process',side_effect=OSError('Network unavailable')):
+  with patch('skilldesk.upstream.run_process',side_effect=OSError('Network unavailable')):
    with self.assertRaises(OSError):checkout('https://github.com/fixture/repo','main',self.base/'checkout')
   self.assertEqual(tree_digest(folder),before)
  def test_unicode_spaces_and_long_paths_round_trip(self):
@@ -73,6 +73,6 @@ class FailureTests(unittest.TestCase):
   with self.assertRaisesRegex(ValueError,'portable'):export_package([dict(folder=self.source)])
  def test_failed_atomic_state_write_preserves_old_bytes(self):
   path=self.state/'test.json';atomic_json(path,dict(value=1))
-  with patch('durable_state.os.replace',side_effect=PermissionError('Injected write restriction')):
+  with patch('skilldesk.durable_state.os.replace',side_effect=PermissionError('Injected write restriction')):
    with self.assertRaises(PermissionError):atomic_json(path,dict(value=2))
   self.assertEqual(json.loads(path.read_text()),dict(value=1));self.assertFalse(list(self.state.glob('.test.json-*')))

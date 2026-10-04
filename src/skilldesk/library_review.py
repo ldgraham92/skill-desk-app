@@ -1,9 +1,9 @@
 """Read-only comparisons and library health checks."""
 import difflib
 from pathlib import Path
-from management import validate_folder, inventory
-from job_control import checkpoint
-from advanced_drafts import file_diff
+from .management import validate_folder, inventory
+from .job_control import checkpoint
+from .advanced_drafts import file_diff
 
 
 def compare(left,right):
@@ -21,7 +21,7 @@ def health(entries,projects):
         checkpoint()
         folder=Path(item['folder']);checked+=1
         try:
-            from library_tools import quality
+            from .library_tools import quality
             report=quality(folder,item.get('harnesses',[]))
             issues.extend(dict(name=item['name'],location=str(folder),**issue) for issue in report['issues'])
         except Exception as error:

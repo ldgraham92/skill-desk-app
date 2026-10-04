@@ -9,11 +9,11 @@ import tempfile
 import time
 import uuid
 import yaml
-from job_control import checkpoint
+from .job_control import checkpoint
 
 
-from advanced_drafts import AdvancedDrafts
-from experience import tree_digest
+from .advanced_drafts import AdvancedDrafts
+from .experience import tree_digest
 
 
 class DraftTools(AdvancedDrafts):
@@ -23,9 +23,9 @@ class DraftTools(AdvancedDrafts):
         return draft,draft['paths'][data['candidate']]
 
     def describe_draft(self,token):
-        from management import validate_folder
-        from agents import compatible_agents
-        from library_tools import quality
+        from .management import validate_folder
+        from .agents import compatible_agents
+        from .library_tools import quality
         draft=self.drafts[token];root=draft.get('target_root') or self.root
         candidates=[]
         for key,path in draft['paths'].items():
@@ -39,7 +39,7 @@ class DraftTools(AdvancedDrafts):
         return result
 
     def edit_draft(self,data,validate_only=False):
-        from management import validate_folder
+        from .management import validate_folder
         with self.lock:
             draft,folder=self.draft_candidate(data)
             if draft.get('installed'): raise ValueError('This preview has installed copies. Create a new preview before editing.')
@@ -69,7 +69,7 @@ class DraftTools(AdvancedDrafts):
                     diff='\n'.join(difflib.unified_diff((previous[-1] if previous else current).splitlines(),current.splitlines(),fromfile='Previous draft',tofile='Current draft',lineterm=''))[:100000])
 
     def revise_draft(self,data,progress):
-        from management import metadata
+        from .management import metadata
         with self.lock:
             draft,folder=self.draft_candidate(data)
             old=(folder/'SKILL.md').read_text(encoding='utf-8')
@@ -95,7 +95,7 @@ class DraftTools(AdvancedDrafts):
             self.discard({'draft':token});raise
 
     def preview_file(self,data):
-        from management import inventory
+        from .management import inventory
         _,folder=self.draft_candidate(data)
         name=data.get('file')
         if not isinstance(name,str) or name not in inventory(folder): raise ValueError('Choose a file included in this draft.')
@@ -117,7 +117,7 @@ class DraftTools(AdvancedDrafts):
         return result
 
     def save_draft(self,data):
-        from management import validate_folder
+        from .management import validate_folder
         draft,folder=self.draft_candidate(data)
         if len(self.saved_drafts())>=50: raise ValueError('You have 50 saved drafts. Delete one before saving another.')
         details=validate_folder(folder);token=uuid.uuid4().hex
@@ -150,13 +150,13 @@ class DraftTools(AdvancedDrafts):
         return path
 
     def reopen_draft(self,data,allowed_roots):
-        from management import inventory
+        from .management import inventory
         base=self.saved_path(data);record=json.loads((base/'record.json').read_text(encoding='utf-8'))
         if not isinstance(record,dict):raise ValueError('Invalid saved draft record.')
         root=Path(record['target_root'])
         if root not in allowed_roots: raise ValueError('The saved destination is no longer registered. Restore its project or library before reopening.')
         if record.get('project_path'):
-            from projects import project_destination
+            from .projects import project_destination
             if project_destination(record['project_path'],record['target_agent'])!=root: raise ValueError('Project destination changed.')
         # Saved records can arrive in a workspace backup. Validate every revision
         # before reading its contents or allocating a new preview.
@@ -188,11 +188,11 @@ class DraftTools(AdvancedDrafts):
         shutil.rmtree(self.saved_path(data));return dict(deleted=True)
 
     def duplicate_skill(self,folder,data,target_root):
-        from management import metadata,NAME
+        from .management import metadata,NAME
         name=data.get('name')
         if not isinstance(name,str) or len(name)>63 or not NAME.fullmatch(name): raise ValueError('Choose a lowercase name with letters, digits and single hyphens, up to 63 characters.')
         with tempfile.TemporaryDirectory(prefix='skilldesk-duplicate-') as work:
-            from management import validate_folder
+            from .management import validate_folder
             validate_folder(folder)
             copy=Path(work)/'skill';shutil.copytree(folder,copy)
             text=(copy/'SKILL.md').read_text(encoding='utf-8');meta=metadata(text);meta['name']=name

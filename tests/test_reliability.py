@@ -9,18 +9,18 @@ import time
 import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from management import Manager
-from providers import AuthorProvider,executable,generation_error
-from diagnostics import diagnostic_report
-from readiness import check_agent
-from usage_history import project_matches,scan
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
+from skilldesk.management import Manager
+from skilldesk.providers import AuthorProvider,executable,generation_error
+from skilldesk.diagnostics import diagnostic_report
+from skilldesk.readiness import check_agent
+from skilldesk.usage_history import project_matches,scan
 
 MD='---\nname: reliable-skill\ndescription: Test the recovery behavior.\n---\nVerify the result.'
 
 class ReliabilityTests(unittest.TestCase):
  def setUp(self):
-  patcher=patch('providers.opencode_support.capabilities',return_value={'standalone':True,'compatible':True});patcher.start();self.addCleanup(patcher.stop)
+  patcher=patch('skilldesk.providers.opencode_support.capabilities',return_value={'standalone':True,'compatible':True});patcher.start();self.addCleanup(patcher.stop)
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name)
   self.manager=Manager(self.root/'skills',lambda *_:{'skill_md':MD},self.root/'state');self.addCleanup(self.manager.temporary.cleanup)
  def install(self):
@@ -66,29 +66,29 @@ class ReliabilityTests(unittest.TestCase):
   projects=SimpleNamespace(listing=lambda:[{'name':'PRIVATE PROJECT','path':'PRIVATE PATH','available':True}])
   provider=SimpleNamespace(name='codex',models={'codex':'PRIVATE MODEL'})
   self.manager.jobs['one']={'status':'failed','message':'PRIVATE OUTPUT','result':{'prompt':'PRIVATE PROMPT'}}
-  with patch('diagnostics.executable',return_value='/PRIVATE/executable'):result=diagnostic_report(catalog,self.manager,projects,provider)
+  with patch('skilldesk.diagnostics.executable',return_value='/PRIVATE/executable'):result=diagnostic_report(catalog,self.manager,projects,provider)
   self.assertNotIn('PRIVATE',json.dumps(result));self.assertEqual(result['jobs']['failed'],1)
  def test_missing_cli_from_gui_path_uses_known_user_bin(self):
   file=self.root/'.opencode/bin'/('opencode.exe' if os.name=='nt' else 'opencode');file.parent.mkdir(parents=True);file.write_text('fixture');file.chmod(0o755)
-  with patch('providers.Path.home',return_value=self.root),patch('providers.shutil.which',return_value=None):self.assertEqual(executable('opencode'),str(file))
+  with patch('skilldesk.providers.Path.home',return_value=self.root),patch('skilldesk.providers.shutil.which',return_value=None):self.assertEqual(executable('opencode'),str(file))
  def test_provider_failures_do_not_echo_private_output(self):
   for output,message in [('401 PRIVATE','sign-in'),('rate limit PRIVATE','usage limit'),('unknown model PRIVATE','model is unavailable'),('unknown option PRIVATE','required option')]:
    result=generation_error('cursor',output);self.assertIn(message,result);self.assertNotIn('PRIVATE',result)
  def test_incompatible_cli_is_not_reported_ready(self):
   def run(cmd,**_):return SimpleNamespace(returncode=0,stdout='2.1.0' if '--version' in cmd else 'Logged in using ChatGPT',stderr='')
-  with patch('readiness.executable',return_value='/fixture/codex'),patch('readiness.subprocess.run',side_effect=run):self.assertEqual(check_agent('codex')['status'],'update')
+  with patch('skilldesk.readiness.executable',return_value='/fixture/codex'),patch('skilldesk.readiness.subprocess.run',side_effect=run):self.assertEqual(check_agent('codex')['status'],'update')
  def test_malformed_provider_envelopes_are_actionable(self):
   provider=AuthorProvider(self.root/'provider.json')
   for name in ('cursor','opencode','claude'):
    for output in ('not-json','[]','null','{}'):
-    with self.subTest(name=name,output=output),patch('providers.executable',return_value='/fixture/'+name),patch('providers.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout=output,stderr='PRIVATE')):
+    with self.subTest(name=name,output=output),patch('skilldesk.providers.executable',return_value='/fixture/'+name),patch('skilldesk.providers.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout=output,stderr='PRIVATE')):
      with self.assertRaises(ValueError) as error:provider.generate('brief',{},provider=name)
      self.assertNotIn('PRIVATE',str(error.exception))
  def test_corrupt_settings_fall_back_to_installed_cli(self):
   settings=self.root/'provider.json'
   for data in ('[]','null','{"provider":[],"models":null}','{broken'):
    settings.write_text(data)
-   with patch('providers.executable',side_effect=lambda name:'/fixture/claude' if name=='claude' else None):provider=AuthorProvider(settings)
+   with patch('skilldesk.providers.executable',side_effect=lambda name:'/fixture/claude' if name=='claude' else None):provider=AuthorProvider(settings)
    self.assertEqual(provider.name,'claude');self.assertEqual(provider.models,{})
  def test_history_unreadable_file_is_distinct_from_missing(self):
   root=self.root/'.codex';root.mkdir();file=root/'history.jsonl';file.write_text('{}')

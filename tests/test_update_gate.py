@@ -1,8 +1,9 @@
 import sys,threading,unittest,tempfile,json
 from pathlib import Path
 from types import SimpleNamespace
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
+from skilldesk.update_gate import UpdateGate
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from update_gate import UpdateGate
 from publish_release import manifest
 class UpdateTests(unittest.TestCase):
     def test_waits_for_jobs_and_drafts_and_blocks_new_generation(self):

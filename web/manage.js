@@ -1,386 +1,1323 @@
 'use strict';
-if(window.skillDeskMode&&window.skillDeskMode!=='local'){const modeBanner=document.createElement('div');modeBanner.className='instance-banner';modeBanner.setAttribute('role','note');modeBanner.textContent=window.skillDeskMode==='test'?'TEST INSTANCE · Synthetic data · Temporary libraries':'LOCAL DEVELOPMENT BUILD';document.querySelector('.topbar').before(modeBanner);}
-let providerData=null, packageInstalling=false;
-let manageData={installed:[],archived:[]}, activeDraft=null, activeJob=null, manageFilter='All', lastManage='';
-const manageNav=document.createElement('button');manageNav.dataset.view='manage';manageNav.innerHTML='<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M7 4v6M4 17h16M16 14v6"/></svg>Manage skills';$('#mainnav').append(manageNav);
-const originalRender=render;
-render=function(){if(view==='manage'){renderManage();renderProviderControls();}else originalRender();};
-function renderManage(){if(typeof renderManageWorkspace==='function')renderManageWorkspace();}
-let dialogReturnFocus=null;
-const formDrafts={};
-let lastJobRequest=null;
-let pendingWorkspaceRequests=0;
-const modal=document.createElement('dialog');modal.className='skill-dialog';modal.innerHTML='<div id="dialog-body"></div>';document.body.append(modal);
-function showDialog(body){saveFormDraft();if(!modal.open)dialogReturnFocus=document.activeElement;$('#dialog-body').innerHTML=body;modal.setAttribute('aria-labelledby','dialog-title');if(typeof selectedProject==='function'&&selectedProject()){for(const id of ['package-target','nearby-target','skill-target']){const select=$('#'+id);if(select){select.value=projectAgent;select.disabled=true;select.insertAdjacentHTML('afterend',`<p class="manage-note">Project: ${esc(selectedProject().name)}</p>`);}}}if(!modal.open)modal.showModal();restoreFormDraft();$('#dialog-title')?.focus();}
-function draftContext(id){return `${id}:${typeof projectSelection==='undefined'?'':projectSelection}:${typeof projectAgent==='undefined'?'':projectAgent}`;}
-function saveFormDraft(){const form=modal.querySelector('#create-form,#import-form');if(!form)return;formDrafts[draftContext(form.id)]=Object.fromEntries([...form.querySelectorAll('input,textarea,select')].filter(e=>e.id&&e.type!=='file').map(e=>[e.id,e.type==='checkbox'?e.checked:e.value]));}
-function restoreFormDraft(){const form=modal.querySelector('#create-form,#import-form');if(!form)return;const values=formDrafts[draftContext(form.id)]||{};for(const [id,value] of Object.entries(values)){const el=document.getElementById(id);if(el){if(el.type==='checkbox')el.checked=value;else if(!el.disabled)el.value=value;}}if(form.id==='import-form'){const github=$('#import-mode').value==='github';$('#markdown-fields').hidden=github;$('#github-fields').hidden=!github;}}
-modal.addEventListener('input',saveFormDraft);
-modal.addEventListener('change',saveFormDraft);
-modal.addEventListener('close',()=>{saveFormDraft();if(modal.open)return;const focusId=dialogReturnFocus?.id;if(view==='manage')renderManage();let target=dialogReturnFocus?.isConnected?dialogReturnFocus:focusId?document.getElementById(focusId):null;const menu=target?.closest('details');if(menu&&!menu.open)target=menu.querySelector('summary');(target||$('#library-settings'))?.focus();});
-function errorMessage(message){const el=$('#form-message');if(el){el.textContent=message;el.className='form-error';}else toast(message);}
-function dialogHeader(title){return `<div class="dialog-heading"><h2 id="dialog-title" tabindex="-1">${title}</h2><button class="button" type="button" id="close-dialog" aria-label="Close dialog">Close</button></div>`;}
-async function api(path,body){
- const bindsWorkspace=['/api/package-preview','/api/collection-preview','/api/nearby-preview','/api/create','/api/import','/api/copy-preview','/api/recommend','/api/provider','/api/duplicate-preview','/api/multi-copy-preview','/api/draft-reopen'].includes(path);
- if(body&&typeof projectSelection!=='undefined'&&projectSelection&&['/api/package-preview','/api/collection-preview','/api/nearby-preview','/api/create','/api/import','/api/copy-preview'].includes(path)&&!Object.hasOwn(body,'project'))body={...body,project:projectSelection,target:projectAgent};
- if(bindsWorkspace)pendingWorkspaceRequests++;
- try{
-  const options=body===undefined?{signal:AbortSignal.timeout(15000)}:{signal:AbortSignal.timeout(120000),method:'POST',headers:{'Content-Type':'application/json','X-Skill-Desk-Token':window.skillDeskToken},body:JSON.stringify(body)};
-  const response=await fetch(path,options);const data=await response.json().catch(()=>({error:'The server returned an unreadable response. Retry or reopen the local app.'}));
-  if(!response.ok){const error=Error(data.error||'Request failed');error.status=response.status;throw error;}return data;
- }finally{if(bindsWorkspace)pendingWorkspaceRequests--;}
+if (window.skillDeskMode && window.skillDeskMode !== 'local') {
+  const modeBanner = document.createElement('div');
+  modeBanner.className = 'instance-banner';
+  modeBanner.setAttribute('role', 'note');
+  modeBanner.textContent =
+    window.skillDeskMode === 'test'
+      ? 'TEST INSTANCE · Synthetic data · Temporary libraries'
+      : 'LOCAL DEVELOPMENT BUILD';
+  document.querySelector('.topbar').before(modeBanner);
+}
+let providerData = null,
+  packageInstalling = false;
+let manageData = { installed: [], archived: [] },
+  activeDraft = null,
+  activeJob = null,
+  manageFilter = 'All',
+  lastManage = '';
+const manageNav = document.createElement('button');
+manageNav.dataset.view = 'manage';
+manageNav.innerHTML =
+  '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M7 4v6M4 17h16M16 14v6"/></svg>Manage skills';
+$('#mainnav').append(manageNav);
+const originalRender = render;
+render = function () {
+  if (view === 'manage') {
+    renderManage();
+    renderProviderControls();
+  } else originalRender();
+};
+function renderManage() {
+  if (typeof renderManageWorkspace === 'function') renderManageWorkspace();
+}
+let dialogReturnFocus = null;
+const formDrafts = {};
+let lastJobRequest = null;
+let pendingWorkspaceRequests = 0;
+const modal = document.createElement('dialog');
+modal.className = 'skill-dialog';
+modal.innerHTML = '<div id="dialog-body"></div>';
+document.body.append(modal);
+function showDialog(body) {
+  saveFormDraft();
+  if (!modal.open) dialogReturnFocus = document.activeElement;
+  $('#dialog-body').innerHTML = body;
+  modal.setAttribute('aria-labelledby', 'dialog-title');
+  if (typeof selectedProject === 'function' && selectedProject()) {
+    for (const id of ['package-target', 'nearby-target', 'skill-target']) {
+      const select = $('#' + id);
+      if (select) {
+        select.value = projectAgent;
+        select.disabled = true;
+        select.insertAdjacentHTML(
+          'afterend',
+          `<p class="manage-note">Project: ${esc(selectedProject().name)}</p>`,
+        );
+      }
+    }
+  }
+  if (!modal.open) modal.showModal();
+  restoreFormDraft();
+  $('#dialog-title')?.focus();
+}
+function draftContext(id) {
+  return `${id}:${typeof projectSelection === 'undefined' ? '' : projectSelection}:${typeof projectAgent === 'undefined' ? '' : projectAgent}`;
+}
+function saveFormDraft() {
+  const form = modal.querySelector('#create-form,#import-form');
+  if (!form) return;
+  formDrafts[draftContext(form.id)] = Object.fromEntries(
+    [...form.querySelectorAll('input,textarea,select')]
+      .filter((e) => e.id && e.type !== 'file')
+      .map((e) => [e.id, e.type === 'checkbox' ? e.checked : e.value]),
+  );
+}
+function restoreFormDraft() {
+  const form = modal.querySelector('#create-form,#import-form');
+  if (!form) return;
+  const values = formDrafts[draftContext(form.id)] || {};
+  for (const [id, value] of Object.entries(values)) {
+    const el = document.getElementById(id);
+    if (el) {
+      if (el.type === 'checkbox') el.checked = value;
+      else if (!el.disabled) el.value = value;
+    }
+  }
+  if (form.id === 'import-form') {
+    const github = $('#import-mode').value === 'github';
+    $('#markdown-fields').hidden = github;
+    $('#github-fields').hidden = !github;
+  }
+}
+modal.addEventListener('input', saveFormDraft);
+modal.addEventListener('change', saveFormDraft);
+modal.addEventListener('close', () => {
+  saveFormDraft();
+  if (modal.open) return;
+  const focusId = dialogReturnFocus?.id;
+  if (view === 'manage') renderManage();
+  let target = dialogReturnFocus?.isConnected
+    ? dialogReturnFocus
+    : focusId
+      ? document.getElementById(focusId)
+      : null;
+  const menu = target?.closest('details');
+  if (menu && !menu.open) target = menu.querySelector('summary');
+  (target || $('#library-settings'))?.focus();
+});
+function errorMessage(message) {
+  const el = $('#form-message');
+  if (el) {
+    el.textContent = message;
+    el.className = 'form-error';
+  } else toast(message);
+}
+function dialogHeader(title) {
+  return `<div class="dialog-heading"><h2 id="dialog-title" tabindex="-1">${title}</h2><button class="button" type="button" id="close-dialog" aria-label="Close dialog">Close</button></div>`;
+}
+async function api(path, body) {
+  const bindsWorkspace = [
+    '/api/package-preview',
+    '/api/collection-preview',
+    '/api/nearby-preview',
+    '/api/create',
+    '/api/import',
+    '/api/copy-preview',
+    '/api/recommend',
+    '/api/provider',
+    '/api/duplicate-preview',
+    '/api/multi-copy-preview',
+    '/api/draft-reopen',
+  ].includes(path);
+  if (
+    body &&
+    typeof projectSelection !== 'undefined' &&
+    projectSelection &&
+    [
+      '/api/package-preview',
+      '/api/collection-preview',
+      '/api/nearby-preview',
+      '/api/create',
+      '/api/import',
+      '/api/copy-preview',
+    ].includes(path) &&
+    !Object.hasOwn(body, 'project')
+  )
+    body = { ...body, project: projectSelection, target: projectAgent };
+  if (bindsWorkspace) pendingWorkspaceRequests++;
+  try {
+    const options =
+      body === undefined
+        ? { signal: AbortSignal.timeout(15000) }
+        : {
+            signal: AbortSignal.timeout(120000),
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Skill-Desk-Token': window.skillDeskToken,
+            },
+            body: JSON.stringify(body),
+          };
+    const response = await fetch(path, options);
+    const data = await response.json().catch(() => ({
+      error: 'The server returned an unreadable response. Retry or reopen the local app.',
+    }));
+    if (!response.ok) {
+      const error = Error(data.error || 'Request failed');
+      error.status = response.status;
+      throw error;
+    }
+    return data;
+  } finally {
+    if (bindsWorkspace) pendingWorkspaceRequests--;
+  }
 }
 
-async function loadManage(){try{const next=await api('/api/manage');const signature=JSON.stringify(next);manageData=next;if(view==='manage'&&!modal.open&&signature!==lastManage)renderManage();lastManage=signature;renderProviderControls();}catch(e){if(view==='manage')toast(e.message);}}
-function createForm(){showDialog(dialogHeader('Create a skill')+`<form id="create-form"><label for="skill-target">Install for</label><select id="skill-target">${projectSelection?agentOptions(projectAgent):'<option value="shared">Default skill library</option>'+agentOptions('shared')}</select><label for="skill-brief">What should this skill help you do?</label><textarea id="skill-brief" required maxlength="30000" rows="9" placeholder="Describe the purpose, when to use it, the steps or rules that matter, and the result you want. Include an example request if useful."></textarea><label class="checkbox-label"><input type="checkbox" id="explicit-skill"> Only use when I explicitly request it</label><p class="manage-note">Uses your selected authoring CLI with the installed skill-authoring guidance. You can review the generated instructions before installing.</p><p id="form-message" role="status"></p><button class="button primary" type="submit">Generate preview</button></form>`);}
-function importForm(){showDialog(dialogHeader('Import a skill')+`<form id="import-form"><label for="skill-target">Install for</label><select id="skill-target">${projectSelection?agentOptions(projectAgent):'<option value="shared">Default skill library</option>'+agentOptions('shared')}</select><label for="import-mode">Import from</label><select id="import-mode"><option value="markdown">Markdown text or file</option><option value="github">GitHub repository</option></select><div id="markdown-fields"><label for="md-file">Markdown file</label><input type="file" id="md-file" accept=".md,.markdown,text/markdown,text/plain"><label for="md-content">Or paste Markdown</label><textarea id="md-content" rows="7" maxlength="200000" placeholder="Paste SKILL.md, including its YAML name and description."></textarea><details><summary>Ordinary Markdown without skill metadata?</summary><label for="md-name">Skill name</label><input id="md-name" placeholder="my-skill" maxlength="63"><label for="md-description">When should the agent use this skill?</label><input id="md-description" maxlength="1024"></details></div><div id="github-fields" hidden><label for="repo-url">GitHub URL</label><input type="url" id="repo-url" placeholder="https://github.com/owner/repository"><label for="repo-ref">Branch or tag <small>optional</small></label><input id="repo-ref" placeholder="Repository default"><label for="repo-path">Skill folder <small>optional</small></label><input id="repo-path" placeholder="skills/my-skill"><p class="manage-note">Repository imports preserve the complete skill folder, including references, scripts, licenses, and invocation settings. For branch names containing slashes, use the repository URL and enter the full branch here.</p></div><p id="form-message" role="status"></p><button class="button primary" type="submit">Preview import</button></form>`);}
-function previewDraft(result){if(result.package){previewPackage(result);return;}activeDraft=result;showDialog(dialogHeader('Review skill')+(result.destination?`<p>Destination: ${esc(result.destination)}</p>`:'')+(result.targetHarness?`<p>Install a separate copy in ${harnessLabel(result.targetHarness)}. All included files are preserved. Review any harness-specific tools or instructions before using the copy.</p>`:'')+`<p><span class="tag">${esc(result.kind)}</span></p>${result.candidates.length>1?`<label for="candidate">Choose a skill to install</label><select id="candidate">${result.candidates.map(s=>`<option value="${esc(s.candidate)}">${esc(s.name)}</option>`).join('')}</select>`:''}<div id="candidate-preview"></div><p id="form-message" role="status"></p><div class="manage-actions"><button class="button" id="discard-draft">Discard preview</button><button class="button primary" id="install-draft">${result.project?'Install in '+esc(result.project.name):result.targetHarness?'Install in '+harnessLabel(result.targetHarness):'Install in personal library'}</button></div>`);renderCandidate();}
-function selectedCandidate(){return activeDraft.candidates.find(x=>x.candidate===($('#candidate')?.value||activeDraft.candidates[0].candidate));}
-function renderCandidate(){const s=selectedCandidate();$('#candidate-preview').innerHTML=`<h3>${esc(s.name)}</h3><p>${esc(s.description)}</p><p class="manage-note">${esc(s.invocation)} · ${s.files.length} files</p><details><summary>Included files</summary><ul>${s.files.map(f=>`<li><button class="text-link" data-draft-file="${esc(f)}">${esc(f)}</button></li>`).join('')}</ul></details><pre class="skill-preview">${esc(s.content)}</pre>${(s.warnings||[]).map(w=>`<p class="manage-note">${esc(w)}</p>`).join('')}${s.compatibility?.issues?.length?`<details><summary>Destination compatibility checks</summary>${s.compatibility.issues.map(x=>`<p>${esc(x.severity)} · ${esc(x.message)}</p>`).join('')}</details>`:''}${typeof draftActions==='function'?draftActions():''}${s.conflict?`<p class="form-error">${esc(s.conflict)}</p>${s.canCompare?'<button class="button" id="compare-replacement">Compare with destination copy</button>':''}`:''}`;$('#install-draft').disabled=!!s.conflict;}
-let jobState=null, jobConnectionLost=false;
-const jobBanner=document.createElement('section');jobBanner.id='skill-job-banner';jobBanner.hidden=true;
-jobBanner.setAttribute('aria-label','Skill preparation status');$('.topbar').after(jobBanner);
-function elapsedJob(){
- if(!jobState?.started_at)return jobState?.status==='running'?'Starting…':'';
- const seconds=Math.max(0,Math.floor((jobState.finished_at||Date.now()/1000)-jobState.started_at));
- return seconds<60?`${seconds}s elapsed`:`${Math.floor(seconds/60)}m ${String(seconds%60).padStart(2,'0')}s elapsed`;
-}
-function jobTitle(){return jobConnectionLost?'Connection interrupted':jobState?.message||'Preparing your skill';}
-function jobResultUnavailable(job){return job?.status==='complete'&&(job.resultAvailable===false||!job.result);}
-function jobHint(){
- if(jobConnectionLost)return 'Retrying the status connection. The server may still be working.';
- if(jobState?.resultAvailable===false||jobResultUnavailable(jobState))return 'Only the job status was retained. Agent requests are never retried automatically.';
- if(jobState?.status==='cancelled')return 'The job stopped. Your inputs remain available for editing or retry.';
- if(jobState?.phase==='cancelling')return 'Waiting for process cleanup before another job can start.';
- if(jobState?.action==='recommend')return jobState.status==='complete'?'Your recommendations are ready. Choose what to review.':jobState.status==='failed'?'The analysis did not finish. Your skills were not changed.':'Your agent is reviewing the excerpts you selected. You can keep browsing.';
- if(jobState?.status==='complete')return 'Your preview is ready. Review it before installing globally.';
- if(jobState?.status==='failed')return 'No skill was installed by this job. Dismiss this status to try again.';
- if(jobState?.phase==='generating')return 'Waiting for the authoring CLI to return the draft. This can take a few minutes.';
- return 'You can continue browsing. This job will keep running.';
-}
-function paintJob(){
- if(!jobState){jobBanner.hidden=true;return;}
- const running=jobState.status==='running';jobBanner.hidden=false;
- const label=jobResultUnavailable(jobState)?'View status':jobState.status==='complete'?(jobState.action==='recommend'?'View recommendations':'Review skill'):running?'View progress':'View error';
- const markup=`<div class="job-status-main"><span class="job-indicator ${running?'is-running':''}" aria-hidden="true">${running?'':jobState.status==='complete'?'✓':'!'}</span><div><strong class="job-title" role="status">${esc(jobTitle())}</strong><p>${esc(jobHint())}</p></div></div><span class="job-elapsed">${elapsedJob()}</span><button class="button" id="view-skill-job">${label}</button>${jobResultUnavailable(jobState)||['failed','cancelled'].includes(jobState.status)?'<button class="button" id="dismiss-skill-job">Dismiss</button>':''}`;
- // Keep the controls in place so the timer does not disrupt focus or clicks.
- const signature=JSON.stringify([jobState.status,jobState.phase,jobState.message,jobState.resultAvailable,jobConnectionLost]);
- if(jobBanner.dataset.signature!==signature){jobBanner.innerHTML=markup;jobBanner.dataset.signature=signature;}
- else jobBanner.querySelector('.job-elapsed').textContent=elapsedJob();
- const progress=$('#job-progress');
- if(progress){
-  progress.querySelector('.job-title').textContent=jobTitle();
-  progress.querySelector('.job-hint').textContent=jobHint();
-  progress.querySelector('.job-elapsed').textContent=elapsedJob();
-  const cancel=$('#cancel-job');if(cancel){cancel.disabled=jobState.phase==='cancelling';cancel.textContent=cancel.disabled?'Stopping…':'Cancel job';}
-  progress.querySelectorAll('[data-stage]').forEach(el=>{
-   const steps=['preparing',jobState.action==='import'?'downloading':'generating','validating'];
-   const index=steps.indexOf(jobState.phase),current=steps.indexOf(el.dataset.stage);
-   el.classList.toggle('current',current===index);el.classList.toggle('done',current<index);
-  });
- }
-}
-function showJobProgress(){
- if(jobResultUnavailable(jobState)){showDialog(dialogHeader('Job completed')+'<p>This job completed, but its result is no longer available. Agent requests are never retried automatically.</p>');return;}
- if(jobState?.status==='complete'&&typeof specialJob==='function'&&specialJob(jobState)){showToolResult(jobState);return;}
- if(jobState?.status==='complete'&&jobState.action==='recommend'){showRecommendationResult(jobState.result);return;}
- if(jobState?.status==='complete'&&activeDraft){previewDraft(activeDraft);return;}
- if(['failed','cancelled'].includes(jobState?.status)){showDialog(dialogHeader(jobState.status==='cancelled'?'Job cancelled':jobState.action==='recommend'?'Could not review usage':'Could not prepare skill')+'<p id="form-message" role="alert"></p>'+(lastJobRequest?'<div class="manage-actions"><button class="button" id="edit-job-input">Edit inputs</button><button class="button primary" id="retry-job">Retry job</button></div>':''));errorMessage(jobState.message);return;}
- const steps=jobState?.action==='recommend'?[['preparing','Read sample'],['generating','Find matches'],['validating','Review results']]:jobState?.action==='import'?[['preparing','Read import'],['downloading','Fetch files'],['validating','Validate']]:[['preparing','Prepare'],['generating','Write with AI'],['validating','Validate']];
- showDialog(dialogHeader(jobState?.action==='recommend'?'Finding skills for you':'Preparing your skill')+`<div id="job-progress"><div class="job-status-main"><span class="job-indicator is-running" aria-hidden="true"></span><h3 class="job-title" role="status"></h3></div><p class="job-hint"></p><p class="job-elapsed" aria-live="off"></p><ol class="job-stages">${steps.map(([id,label])=>`<li data-stage="${id}">${label}</li>`).join('')}</ol><p class="manage-note">You can close this dialog and continue browsing, or cancel the job below.</p><button class="button" id="cancel-job">Cancel job</button></div>`);
- $('#close-dialog').textContent='Continue browsing';paintJob();
-}
-function clearJobStatus(){jobState=null;activeJob=null;jobConnectionLost=false;try{sessionStorage.removeItem('skill-desk-job');}catch{}paintJob();}
-async function waitForJob(id,action){
- activeJob=id;try{sessionStorage.setItem('skill-desk-job',id);}catch{}
- jobState={action,status:'running',phase:'preparing',started_at:Date.now()/1000,message:'Connecting to job status'};
- showJobProgress();paintJob();
- while(activeJob===id){
-  try{
-   const job=await api('/api/jobs/'+id);if(activeJob!==id)return;const actionChanged=jobState?.action!==job.action;jobConnectionLost=false;jobState=job;
-   if(actionChanged&&job.status==='running'&&modal.open&&$('#job-progress'))showJobProgress();
-   if(job.status==='complete'){
-    activeJob=null;const wasViewing=modal.open&&!!$('#job-progress');
-    if(jobResultUnavailable(job)){paintJob();if(wasViewing)showJobProgress();else toast('Job completed; its result is no longer available.');return;}
-    if(typeof specialJob==='function'&&specialJob(job)){lastToolResult=job;paintJob();if(wasViewing)showToolResult(job);else toast('Your check is ready');return;}
-    if(job.action==='recommend'){recommendationResult=job.result;paintJob();if(wasViewing)showRecommendationResult(job.result);else toast('Your skill recommendations are ready');return;}
-    activeDraft=job.result;paintJob();
-    if(wasViewing)previewDraft(job.result);else toast('Your skill is ready to review');return;
-   }
-   if(['failed','cancelled'].includes(job.status)){activeJob=null;if(job.action==='provider-test')await loadProviders();paintJob();if(modal.open&&$('#job-progress'))showJobProgress();return;}
-   paintJob();
-  }catch(e){
-   if(e.status===404){activeJob=null;jobConnectionLost=false;jobState={...jobState,status:'failed',finished_at:Date.now()/1000,message:'This job is no longer available. The server may have restarted.'};paintJob();if(modal.open&&$('#job-progress'))showJobProgress();return;}
-   jobConnectionLost=true;paintJob();
+async function loadManage() {
+  try {
+    const next = await api('/api/manage');
+    const signature = JSON.stringify(next);
+    manageData = next;
+    if (view === 'manage' && !modal.open && signature !== lastManage) renderManage();
+    lastManage = signature;
+    renderProviderControls();
+  } catch (e) {
+    if (view === 'manage') toast(e.message);
   }
-  await new Promise(r=>setTimeout(r,1500));
- }
 }
-async function startJob(action,payload){
- if(pendingWorkspaceRequests)return;
- if(activeJob){showJobProgress();return;}
- saveFormDraft();
- payload={...payload};
- if(!Object.hasOwn(payload,'project'))payload.project=typeof projectSelection==='undefined'?'':projectSelection;
- if(payload.project&&!payload.target)payload.target=projectAgent;
- payload.requestId=payload.requestId||crypto.randomUUID();
- lastJobRequest={action,payload};
- try{const data=await api('/api/'+action,payload);await waitForJob(data.job,action);}catch(e){errorMessage(e.message);}
+function createForm() {
+  showDialog(
+    dialogHeader('Create a skill') +
+      `<form id="create-form"><label for="skill-target">Install for</label><select id="skill-target">${projectSelection ? agentOptions(projectAgent) : '<option value="shared">Default skill library</option>' + agentOptions('shared')}</select><label for="skill-brief">What should this skill help you do?</label><textarea id="skill-brief" required maxlength="30000" rows="9" placeholder="Describe the purpose, when to use it, the steps or rules that matter, and the result you want. Include an example request if useful."></textarea><label class="checkbox-label"><input type="checkbox" id="explicit-skill"> Only use when I explicitly request it</label><p class="manage-note">Uses your selected authoring CLI with the installed skill-authoring guidance. You can review the generated instructions before installing.</p><p id="form-message" role="status"></p><button class="button primary" type="submit">Generate preview</button></form>`,
+  );
 }
-modal.addEventListener('submit',async e=>{if(!['create-form','import-form'].includes(e.target.id))return;e.preventDefault();const button=e.target.querySelector('button[type="submit"]');button.disabled=true;
- try{if(e.target.id==='create-form')await startJob('create',{target:$('#skill-target').value,brief:$('#skill-brief').value,explicit:$('#explicit-skill').checked});
- else await startJob('import',{target:$('#skill-target').value,mode:$('#import-mode').value,content:$('#md-content').value,name:$('#md-name').value,description:$('#md-description').value,filename:$('#md-file').files[0]?.name,url:$('#repo-url').value,ref:$('#repo-ref').value,path:$('#repo-path').value});}
- finally{button.disabled=false;}});
-modal.addEventListener('change',async e=>{if(e.target.id==='import-mode'){const github=e.target.value==='github';$('#markdown-fields').hidden=github;$('#github-fields').hidden=!github;}if(e.target.id==='candidate')renderCandidate();if(e.target.id==='md-file'){const file=e.target.files[0];if(file){if(file.size>200000){errorMessage('Choose a Markdown file of up to 200 KB.');e.target.value='';return;}$('#md-content').value=await file.text();}}});
-document.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;
- try{
- if(b.id==='create-skill'||b.id==='import-skill'){if(typeof multiCopy!=='undefined'&&multiCopy){paintMultiCopy();return;}if(packageInstalling){toast('Wait for the package installation to finish.');return;}if(activeJob){showJobProgress();return;}if(activeDraft){previewDraft(activeDraft);return;}b.id==='create-skill'?createForm():importForm();}
- if(b.id==='cancel-job'){b.disabled=true;await api('/api/job-cancel',{job:activeJob});b.textContent='Stopping…';}
- if(b.id==='retry-job'&&lastJobRequest){b.disabled=true;const request=lastJobRequest;clearJobStatus();await startJob(request.action,{...request.payload,requestId:crypto.randomUUID()});}
- if(b.id==='edit-job-input'&&lastJobRequest){const action=lastJobRequest.action;clearJobStatus();if(action==='create')createForm();else if(action==='import')importForm();else if(action==='draft-revise'){activeDraft=await api('/api/draft-resume',{draft:lastJobRequest.payload.draft});revisionForm();$('#revision-request').value=lastJobRequest.payload.instruction;}else if(['provider-test','provider-models'].includes(action)){modal.close();view='manage';renderManage();$('#library-settings')?.click();}else{modal.close();view='manage';manageTab=action==='library-health'?'installed':'for-you';renderManage();}}
- if(b.id==='view-skill-job')showJobProgress();
- if(b.id==='dismiss-skill-job'){clearJobStatus();if(modal.open)modal.close();}
- if(b.id==='close-dialog')modal.close();
- if(b.dataset.origin){manageFilter=b.dataset.origin;renderManage();}
- if(b.dataset.view==='manage')await loadManage();
- if(b.id==='discard-draft'){await api('/api/discard',{draft:activeDraft.draft});activeDraft=null;clearJobStatus();modal.close();}
- if(b.id==='compare-replacement'){
-  b.disabled=true;const candidate=selectedCandidate();const review=await api('/api/comparison',{draft:activeDraft.draft,candidate:candidate.candidate});
-  showDialog(dialogHeader('Compare replacement')+`<p class="source-path">${esc(review.destination)}</p><p>The previous folder will be archived. Review added, removed, and changed files before replacing.</p>${['added','removed','changed'].map(kind=>`<details open><summary>${kind} files · ${review[kind].length}</summary><ul>${review[kind].map(f=>`<li>${esc(f)}</li>`).join('')}</ul></details>`).join('')}<pre class="skill-preview">${esc(review.diff||'SKILL.md is unchanged. Review the supporting-file list above.')}</pre>${review.truncated?'<p class="manage-note">The displayed diff is truncated. Review the source files before replacing.</p>':''}<label class="checkbox-label"><input type="checkbox" id="confirm-replacement"> I reviewed these changes and want to replace this copy.</label><div class="manage-actions"><button class="button" id="back-to-draft">Back to preview</button><button class="button primary" id="replace-skill" disabled>Replace and archive previous copy</button></div><p id="form-message" role="alert"></p>`);
-  $('#back-to-draft').onclick=()=>previewDraft(activeDraft);
-  $('#confirm-replacement').onchange=e=>$('#replace-skill').disabled=!e.target.checked;
-  $('#replace-skill').onclick=async()=>{const button=$('#replace-skill');button.disabled=true;try{const result=await api('/api/replace',{draft:activeDraft.draft,candidate:candidate.candidate,fingerprint:review.fingerprint});await api('/api/discard',{draft:activeDraft.draft});activeDraft=null;clearJobStatus();modal.close();await loadManage();await syncCatalog();toast('Replaced skill. Previous copy archived at '+result.previousCopy);}catch(error){errorMessage(error.message);button.disabled=false;}};
- }
- if(b.id==='install-draft'){b.disabled=true;const s=selectedCandidate(),completedDraft=activeDraft;const installation=await api('/api/install',{draft:activeDraft.draft,candidate:s.candidate,reviewDigest:s.treeDigest});completedDraft.target=installation.agent;await api('/api/discard',{draft:activeDraft.draft});activeDraft=null;clearJobStatus();modal.close();await loadManage();await syncCatalog();toast('Skill installed');showFirstSteps(completedDraft,[s.name]);}
- if(b.dataset.remove){const s=manageData.installed.find(x=>x.id===b.dataset.remove);showDialog(dialogHeader('Remove '+esc(s.name)+'?')+`<p>This removes the skill from global discovery and keeps an archived copy for restoration.${s.linked?' Only the link is moved; its target folder is preserved.':''}</p><p id="form-message" role="status"></p><button class="button primary" id="confirm-remove">Remove and archive</button>`);$('#confirm-remove').onclick=async()=>{try{await api('/api/archive',{id:s.id,fingerprint:s.fingerprint});modal.close();await loadManage();await syncCatalog();toast('Skill removed and archived');}catch(e){errorMessage(e.message);}};}
- if(b.dataset.restore){b.disabled=true;await api('/api/restore',{token:b.dataset.restore});modal.close();await loadManage();await syncCatalog();toast('Skill restored');}
- }catch(e){errorMessage(e.message);b.disabled=false;}
+function importForm() {
+  showDialog(
+    dialogHeader('Import a skill') +
+      `<form id="import-form"><label for="skill-target">Install for</label><select id="skill-target">${projectSelection ? agentOptions(projectAgent) : '<option value="shared">Default skill library</option>' + agentOptions('shared')}</select><label for="import-mode">Import from</label><select id="import-mode"><option value="markdown">Markdown text or file</option><option value="github">GitHub repository</option></select><div id="markdown-fields"><label for="md-file">Markdown file</label><input type="file" id="md-file" accept=".md,.markdown,text/markdown,text/plain"><label for="md-content">Or paste Markdown</label><textarea id="md-content" rows="7" maxlength="200000" placeholder="Paste SKILL.md, including its YAML name and description."></textarea><details><summary>Ordinary Markdown without skill metadata?</summary><label for="md-name">Skill name</label><input id="md-name" placeholder="my-skill" maxlength="63"><label for="md-description">When should the agent use this skill?</label><input id="md-description" maxlength="1024"></details></div><div id="github-fields" hidden><label for="repo-url">GitHub URL</label><input type="url" id="repo-url" placeholder="https://github.com/owner/repository"><label for="repo-ref">Branch or tag <small>optional</small></label><input id="repo-ref" placeholder="Repository default"><label for="repo-path">Skill folder <small>optional</small></label><input id="repo-path" placeholder="skills/my-skill"><p class="manage-note">Repository imports preserve the complete skill folder, including references, scripts, licenses, and invocation settings. For branch names containing slashes, use the repository URL and enter the full branch here.</p></div><p id="form-message" role="status"></p><button class="button primary" type="submit">Preview import</button></form>`,
+  );
+}
+function previewDraft(result) {
+  if (result.package) {
+    previewPackage(result);
+    return;
+  }
+  activeDraft = result;
+  showDialog(
+    dialogHeader('Review skill') +
+      (result.destination ? `<p>Destination: ${esc(result.destination)}</p>` : '') +
+      (result.targetHarness
+        ? `<p>Install a separate copy in ${harnessLabel(result.targetHarness)}. All included files are preserved. Review any harness-specific tools or instructions before using the copy.</p>`
+        : '') +
+      `<p><span class="tag">${esc(result.kind)}</span></p>${result.candidates.length > 1 ? `<label for="candidate">Choose a skill to install</label><select id="candidate">${result.candidates.map((s) => `<option value="${esc(s.candidate)}">${esc(s.name)}</option>`).join('')}</select>` : ''}<div id="candidate-preview"></div><p id="form-message" role="status"></p><div class="manage-actions"><button class="button" id="discard-draft">Discard preview</button><button class="button primary" id="install-draft">${result.project ? 'Install in ' + esc(result.project.name) : result.targetHarness ? 'Install in ' + harnessLabel(result.targetHarness) : 'Install in personal library'}</button></div>`,
+  );
+  renderCandidate();
+}
+function selectedCandidate() {
+  return activeDraft.candidates.find(
+    (x) => x.candidate === ($('#candidate')?.value || activeDraft.candidates[0].candidate),
+  );
+}
+function renderCandidate() {
+  const s = selectedCandidate();
+  $('#candidate-preview').innerHTML =
+    `<h3>${esc(s.name)}</h3><p>${esc(s.description)}</p><p class="manage-note">${esc(s.invocation)} · ${s.files.length} files</p><details><summary>Included files</summary><ul>${s.files.map((f) => `<li><button class="text-link" data-draft-file="${esc(f)}">${esc(f)}</button></li>`).join('')}</ul></details><pre class="skill-preview">${esc(s.content)}</pre>${(s.warnings || []).map((w) => `<p class="manage-note">${esc(w)}</p>`).join('')}${s.compatibility?.issues?.length ? `<details><summary>Destination compatibility checks</summary>${s.compatibility.issues.map((x) => `<p>${esc(x.severity)} · ${esc(x.message)}</p>`).join('')}</details>` : ''}${typeof draftActions === 'function' ? draftActions() : ''}${s.conflict ? `<p class="form-error">${esc(s.conflict)}</p>${s.canCompare ? '<button class="button" id="compare-replacement">Compare with destination copy</button>' : ''}` : ''}`;
+  $('#install-draft').disabled = !!s.conflict;
+}
+let jobState = null,
+  jobConnectionLost = false;
+const jobBanner = document.createElement('section');
+jobBanner.id = 'skill-job-banner';
+jobBanner.hidden = true;
+jobBanner.setAttribute('aria-label', 'Skill preparation status');
+$('.topbar').after(jobBanner);
+function elapsedJob() {
+  if (!jobState?.started_at) return jobState?.status === 'running' ? 'Starting…' : '';
+  const seconds = Math.max(
+    0,
+    Math.floor((jobState.finished_at || Date.now() / 1000) - jobState.started_at),
+  );
+  return seconds < 60
+    ? `${seconds}s elapsed`
+    : `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s elapsed`;
+}
+function jobTitle() {
+  return jobConnectionLost ? 'Connection interrupted' : jobState?.message || 'Preparing your skill';
+}
+function jobResultUnavailable(job) {
+  return job?.status === 'complete' && (job.resultAvailable === false || !job.result);
+}
+function jobHint() {
+  if (jobConnectionLost) return 'Retrying the status connection. The server may still be working.';
+  if (jobState?.resultAvailable === false || jobResultUnavailable(jobState))
+    return 'Only the job status was retained. Agent requests are never retried automatically.';
+  if (jobState?.status === 'cancelled')
+    return 'The job stopped. Your inputs remain available for editing or retry.';
+  if (jobState?.phase === 'cancelling')
+    return 'Waiting for process cleanup before another job can start.';
+  if (jobState?.action === 'recommend')
+    return jobState.status === 'complete'
+      ? 'Your recommendations are ready. Choose what to review.'
+      : jobState.status === 'failed'
+        ? 'The analysis did not finish. Your skills were not changed.'
+        : 'Your agent is reviewing the excerpts you selected. You can keep browsing.';
+  if (jobState?.status === 'complete')
+    return 'Your preview is ready. Review it before installing globally.';
+  if (jobState?.status === 'failed')
+    return 'No skill was installed by this job. Dismiss this status to try again.';
+  if (jobState?.phase === 'generating')
+    return 'Waiting for the authoring CLI to return the draft. This can take a few minutes.';
+  return 'You can continue browsing. This job will keep running.';
+}
+function paintJob() {
+  if (!jobState) {
+    jobBanner.hidden = true;
+    return;
+  }
+  const running = jobState.status === 'running';
+  jobBanner.hidden = false;
+  const label = jobResultUnavailable(jobState)
+    ? 'View status'
+    : jobState.status === 'complete'
+      ? jobState.action === 'recommend'
+        ? 'View recommendations'
+        : 'Review skill'
+      : running
+        ? 'View progress'
+        : 'View error';
+  const markup = `<div class="job-status-main"><span class="job-indicator ${running ? 'is-running' : ''}" aria-hidden="true">${running ? '' : jobState.status === 'complete' ? '✓' : '!'}</span><div><strong class="job-title" role="status">${esc(jobTitle())}</strong><p>${esc(jobHint())}</p></div></div><span class="job-elapsed">${elapsedJob()}</span><button class="button" id="view-skill-job">${label}</button>${jobResultUnavailable(jobState) || ['failed', 'cancelled'].includes(jobState.status) ? '<button class="button" id="dismiss-skill-job">Dismiss</button>' : ''}`;
+  // Keep the controls in place so the timer does not disrupt focus or clicks.
+  const signature = JSON.stringify([
+    jobState.status,
+    jobState.phase,
+    jobState.message,
+    jobState.resultAvailable,
+    jobConnectionLost,
+  ]);
+  if (jobBanner.dataset.signature !== signature) {
+    jobBanner.innerHTML = markup;
+    jobBanner.dataset.signature = signature;
+  } else jobBanner.querySelector('.job-elapsed').textContent = elapsedJob();
+  const progress = $('#job-progress');
+  if (progress) {
+    progress.querySelector('.job-title').textContent = jobTitle();
+    progress.querySelector('.job-hint').textContent = jobHint();
+    progress.querySelector('.job-elapsed').textContent = elapsedJob();
+    const cancel = $('#cancel-job');
+    if (cancel) {
+      cancel.disabled = jobState.phase === 'cancelling';
+      cancel.textContent = cancel.disabled ? 'Stopping…' : 'Cancel job';
+    }
+    progress.querySelectorAll('[data-stage]').forEach((el) => {
+      const steps = [
+        'preparing',
+        jobState.action === 'import' ? 'downloading' : 'generating',
+        'validating',
+      ];
+      const index = steps.indexOf(jobState.phase),
+        current = steps.indexOf(el.dataset.stage);
+      el.classList.toggle('current', current === index);
+      el.classList.toggle('done', current < index);
+    });
+  }
+}
+function showJobProgress() {
+  if (jobResultUnavailable(jobState)) {
+    showDialog(
+      dialogHeader('Job completed') +
+        '<p>This job completed, but its result is no longer available. Agent requests are never retried automatically.</p>',
+    );
+    return;
+  }
+  if (jobState?.status === 'complete' && typeof specialJob === 'function' && specialJob(jobState)) {
+    showToolResult(jobState);
+    return;
+  }
+  if (jobState?.status === 'complete' && jobState.action === 'recommend') {
+    showRecommendationResult(jobState.result);
+    return;
+  }
+  if (jobState?.status === 'complete' && activeDraft) {
+    previewDraft(activeDraft);
+    return;
+  }
+  if (['failed', 'cancelled'].includes(jobState?.status)) {
+    showDialog(
+      dialogHeader(
+        jobState.status === 'cancelled'
+          ? 'Job cancelled'
+          : jobState.action === 'recommend'
+            ? 'Could not review usage'
+            : 'Could not prepare skill',
+      ) +
+        '<p id="form-message" role="alert"></p>' +
+        (lastJobRequest
+          ? '<div class="manage-actions"><button class="button" id="edit-job-input">Edit inputs</button><button class="button primary" id="retry-job">Retry job</button></div>'
+          : ''),
+    );
+    errorMessage(jobState.message);
+    return;
+  }
+  const steps =
+    jobState?.action === 'recommend'
+      ? [
+          ['preparing', 'Read sample'],
+          ['generating', 'Find matches'],
+          ['validating', 'Review results'],
+        ]
+      : jobState?.action === 'import'
+        ? [
+            ['preparing', 'Read import'],
+            ['downloading', 'Fetch files'],
+            ['validating', 'Validate'],
+          ]
+        : [
+            ['preparing', 'Prepare'],
+            ['generating', 'Write with AI'],
+            ['validating', 'Validate'],
+          ];
+  showDialog(
+    dialogHeader(
+      jobState?.action === 'recommend' ? 'Finding skills for you' : 'Preparing your skill',
+    ) +
+      `<div id="job-progress"><div class="job-status-main"><span class="job-indicator is-running" aria-hidden="true"></span><h3 class="job-title" role="status"></h3></div><p class="job-hint"></p><p class="job-elapsed" aria-live="off"></p><ol class="job-stages">${steps.map(([id, label]) => `<li data-stage="${id}">${label}</li>`).join('')}</ol><p class="manage-note">You can close this dialog and continue browsing, or cancel the job below.</p><button class="button" id="cancel-job">Cancel job</button></div>`,
+  );
+  $('#close-dialog').textContent = 'Continue browsing';
+  paintJob();
+}
+function clearJobStatus() {
+  jobState = null;
+  activeJob = null;
+  jobConnectionLost = false;
+  try {
+    sessionStorage.removeItem('skill-desk-job');
+  } catch {}
+  paintJob();
+}
+async function waitForJob(id, action) {
+  activeJob = id;
+  try {
+    sessionStorage.setItem('skill-desk-job', id);
+  } catch {}
+  jobState = {
+    action,
+    status: 'running',
+    phase: 'preparing',
+    started_at: Date.now() / 1000,
+    message: 'Connecting to job status',
+  };
+  showJobProgress();
+  paintJob();
+  while (activeJob === id) {
+    try {
+      const job = await api('/api/jobs/' + id);
+      if (activeJob !== id) return;
+      const actionChanged = jobState?.action !== job.action;
+      jobConnectionLost = false;
+      jobState = job;
+      if (actionChanged && job.status === 'running' && modal.open && $('#job-progress'))
+        showJobProgress();
+      if (job.status === 'complete') {
+        activeJob = null;
+        const wasViewing = modal.open && !!$('#job-progress');
+        if (jobResultUnavailable(job)) {
+          paintJob();
+          if (wasViewing) showJobProgress();
+          else toast('Job completed; its result is no longer available.');
+          return;
+        }
+        if (typeof specialJob === 'function' && specialJob(job)) {
+          lastToolResult = job;
+          paintJob();
+          if (wasViewing) showToolResult(job);
+          else toast('Your check is ready');
+          return;
+        }
+        if (job.action === 'recommend') {
+          recommendationResult = job.result;
+          paintJob();
+          if (wasViewing) showRecommendationResult(job.result);
+          else toast('Your skill recommendations are ready');
+          return;
+        }
+        activeDraft = job.result;
+        paintJob();
+        if (wasViewing) previewDraft(job.result);
+        else toast('Your skill is ready to review');
+        return;
+      }
+      if (['failed', 'cancelled'].includes(job.status)) {
+        activeJob = null;
+        if (job.action === 'provider-test') await loadProviders();
+        paintJob();
+        if (modal.open && $('#job-progress')) showJobProgress();
+        return;
+      }
+      paintJob();
+    } catch (e) {
+      if (e.status === 404) {
+        activeJob = null;
+        jobConnectionLost = false;
+        jobState = {
+          ...jobState,
+          status: 'failed',
+          finished_at: Date.now() / 1000,
+          message: 'This job is no longer available. The server may have restarted.',
+        };
+        paintJob();
+        if (modal.open && $('#job-progress')) showJobProgress();
+        return;
+      }
+      jobConnectionLost = true;
+      paintJob();
+    }
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+}
+async function startJob(action, payload) {
+  if (pendingWorkspaceRequests) return;
+  if (activeJob) {
+    showJobProgress();
+    return;
+  }
+  saveFormDraft();
+  payload = { ...payload };
+  if (!Object.hasOwn(payload, 'project'))
+    payload.project = typeof projectSelection === 'undefined' ? '' : projectSelection;
+  if (payload.project && !payload.target) payload.target = projectAgent;
+  payload.requestId = payload.requestId || crypto.randomUUID();
+  lastJobRequest = { action, payload };
+  try {
+    const data = await api('/api/' + action, payload);
+    await waitForJob(data.job, action);
+  } catch (e) {
+    errorMessage(e.message);
+  }
+}
+modal.addEventListener('submit', async (e) => {
+  if (!['create-form', 'import-form'].includes(e.target.id)) return;
+  e.preventDefault();
+  const button = e.target.querySelector('button[type="submit"]');
+  button.disabled = true;
+  try {
+    if (e.target.id === 'create-form')
+      await startJob('create', {
+        target: $('#skill-target').value,
+        brief: $('#skill-brief').value,
+        explicit: $('#explicit-skill').checked,
+      });
+    else
+      await startJob('import', {
+        target: $('#skill-target').value,
+        mode: $('#import-mode').value,
+        content: $('#md-content').value,
+        name: $('#md-name').value,
+        description: $('#md-description').value,
+        filename: $('#md-file').files[0]?.name,
+        url: $('#repo-url').value,
+        ref: $('#repo-ref').value,
+        path: $('#repo-path').value,
+      });
+  } finally {
+    button.disabled = false;
+  }
+});
+modal.addEventListener('change', async (e) => {
+  if (e.target.id === 'import-mode') {
+    const github = e.target.value === 'github';
+    $('#markdown-fields').hidden = github;
+    $('#github-fields').hidden = !github;
+  }
+  if (e.target.id === 'candidate') renderCandidate();
+  if (e.target.id === 'md-file') {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 200000) {
+        errorMessage('Choose a Markdown file of up to 200 KB.');
+        e.target.value = '';
+        return;
+      }
+      $('#md-content').value = await file.text();
+    }
+  }
+});
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  try {
+    if (b.id === 'create-skill' || b.id === 'import-skill') {
+      if (typeof multiCopy !== 'undefined' && multiCopy) {
+        paintMultiCopy();
+        return;
+      }
+      if (packageInstalling) {
+        toast('Wait for the package installation to finish.');
+        return;
+      }
+      if (activeJob) {
+        showJobProgress();
+        return;
+      }
+      if (activeDraft) {
+        previewDraft(activeDraft);
+        return;
+      }
+      b.id === 'create-skill' ? createForm() : importForm();
+    }
+    if (b.id === 'cancel-job') {
+      b.disabled = true;
+      await api('/api/job-cancel', { job: activeJob });
+      b.textContent = 'Stopping…';
+    }
+    if (b.id === 'retry-job' && lastJobRequest) {
+      b.disabled = true;
+      const request = lastJobRequest;
+      clearJobStatus();
+      await startJob(request.action, { ...request.payload, requestId: crypto.randomUUID() });
+    }
+    if (b.id === 'edit-job-input' && lastJobRequest) {
+      const action = lastJobRequest.action;
+      clearJobStatus();
+      if (action === 'create') createForm();
+      else if (action === 'import') importForm();
+      else if (action === 'draft-revise') {
+        activeDraft = await api('/api/draft-resume', { draft: lastJobRequest.payload.draft });
+        revisionForm();
+        $('#revision-request').value = lastJobRequest.payload.instruction;
+      } else if (['provider-test', 'provider-models'].includes(action)) {
+        modal.close();
+        view = 'manage';
+        renderManage();
+        $('#library-settings')?.click();
+      } else {
+        modal.close();
+        view = 'manage';
+        manageTab = action === 'library-health' ? 'installed' : 'for-you';
+        renderManage();
+      }
+    }
+    if (b.id === 'view-skill-job') showJobProgress();
+    if (b.id === 'dismiss-skill-job') {
+      clearJobStatus();
+      if (modal.open) modal.close();
+    }
+    if (b.id === 'close-dialog') modal.close();
+    if (b.dataset.origin) {
+      manageFilter = b.dataset.origin;
+      renderManage();
+    }
+    if (b.dataset.view === 'manage') await loadManage();
+    if (b.id === 'discard-draft') {
+      await api('/api/discard', { draft: activeDraft.draft });
+      activeDraft = null;
+      clearJobStatus();
+      modal.close();
+    }
+    if (b.id === 'compare-replacement') {
+      b.disabled = true;
+      const candidate = selectedCandidate();
+      const review = await api('/api/comparison', {
+        draft: activeDraft.draft,
+        candidate: candidate.candidate,
+      });
+      showDialog(
+        dialogHeader('Compare replacement') +
+          `<p class="source-path">${esc(review.destination)}</p><p>The previous folder will be archived. Review added, removed, and changed files before replacing.</p>${['added', 'removed', 'changed'].map((kind) => `<details open><summary>${kind} files · ${review[kind].length}</summary><ul>${review[kind].map((f) => `<li>${esc(f)}</li>`).join('')}</ul></details>`).join('')}<pre class="skill-preview">${esc(review.diff || 'SKILL.md is unchanged. Review the supporting-file list above.')}</pre>${review.truncated ? '<p class="manage-note">The displayed diff is truncated. Review the source files before replacing.</p>' : ''}<label class="checkbox-label"><input type="checkbox" id="confirm-replacement"> I reviewed these changes and want to replace this copy.</label><div class="manage-actions"><button class="button" id="back-to-draft">Back to preview</button><button class="button primary" id="replace-skill" disabled>Replace and archive previous copy</button></div><p id="form-message" role="alert"></p>`,
+      );
+      $('#back-to-draft').onclick = () => previewDraft(activeDraft);
+      $('#confirm-replacement').onchange = (e) =>
+        ($('#replace-skill').disabled = !e.target.checked);
+      $('#replace-skill').onclick = async () => {
+        const button = $('#replace-skill');
+        button.disabled = true;
+        try {
+          const result = await api('/api/replace', {
+            draft: activeDraft.draft,
+            candidate: candidate.candidate,
+            fingerprint: review.fingerprint,
+          });
+          await api('/api/discard', { draft: activeDraft.draft });
+          activeDraft = null;
+          clearJobStatus();
+          modal.close();
+          await loadManage();
+          await syncCatalog();
+          toast('Replaced skill. Previous copy archived at ' + result.previousCopy);
+        } catch (error) {
+          errorMessage(error.message);
+          button.disabled = false;
+        }
+      };
+    }
+    if (b.id === 'install-draft') {
+      b.disabled = true;
+      const s = selectedCandidate(),
+        completedDraft = activeDraft;
+      const installation = await api('/api/install', {
+        draft: activeDraft.draft,
+        candidate: s.candidate,
+        reviewDigest: s.treeDigest,
+      });
+      completedDraft.target = installation.agent;
+      await api('/api/discard', { draft: activeDraft.draft });
+      activeDraft = null;
+      clearJobStatus();
+      modal.close();
+      await loadManage();
+      await syncCatalog();
+      toast('Skill installed');
+      showFirstSteps(completedDraft, [s.name]);
+    }
+    if (b.dataset.remove) {
+      const s = manageData.installed.find((x) => x.id === b.dataset.remove);
+      showDialog(
+        dialogHeader('Remove ' + esc(s.name) + '?') +
+          `<p>This removes the skill from global discovery and keeps an archived copy for restoration.${s.linked ? ' Only the link is moved; its target folder is preserved.' : ''}</p><p id="form-message" role="status"></p><button class="button primary" id="confirm-remove">Remove and archive</button>`,
+      );
+      $('#confirm-remove').onclick = async () => {
+        try {
+          await api('/api/archive', { id: s.id, fingerprint: s.fingerprint });
+          modal.close();
+          await loadManage();
+          await syncCatalog();
+          toast('Skill removed and archived');
+        } catch (e) {
+          errorMessage(e.message);
+        }
+      };
+    }
+    if (b.dataset.restore) {
+      b.disabled = true;
+      await api('/api/restore', { token: b.dataset.restore });
+      modal.close();
+      await loadManage();
+      await syncCatalog();
+      toast('Skill restored');
+    }
+  } catch (e) {
+    errorMessage(e.message);
+    b.disabled = false;
+  }
 });
 loadManage();
 
-window.addEventListener('skilldesk-change',()=>{if(view==='manage')loadManage();});
-window.addEventListener('DOMContentLoaded',()=>{try{const job=sessionStorage.getItem('skill-desk-job');if(job)waitForJob(job);}catch{}});
+window.addEventListener('skilldesk-change', () => {
+  if (view === 'manage') loadManage();
+});
+window.addEventListener('DOMContentLoaded', () => {
+  try {
+    const job = sessionStorage.getItem('skill-desk-job');
+    if (job) waitForJob(job);
+  } catch {}
+});
 
-function renderProviderControls(){
- const el=$('#provider-controls');if(!el||!providerData)return;
- el.innerHTML=`<label for="author-provider">Author with</label><select id="author-provider">${providerData.providers.map(p=>`<option value="${p.id}" ${p.id===providerData.selected?'selected':''} ${!p.installed?'disabled':''}>${p.label}${p.installed?'':' · CLI not installed'}</option>`).join('')}</select>${['opencode','cursor'].includes(providerData.selected)?`<label for="author-model">Model · optional</label><input id="author-model" maxlength="160" value="${esc(providerData.models?.[providerData.selected]||'')}" placeholder="${providerData.selected==='opencode'?'provider/model':'CLI default'}"><button class="button" id="save-author-model">Save model</button><p class="manage-note">${providerData.selected==='opencode'?'Use a model ID from opencode models, including DeepSeek models you have configured there.':'Use a model ID from agent models.'} Leave this empty to use the tool’s configured default. A valid model ID does not confirm that your account has access. These authoring runs use your CLI configuration and may be saved in its history.</p>`:''}${providerData.selected==='opencode'?'<button class="button" id="list-opencode-models">Browse installed CLI models</button>':''}<button class="button" id="test-provider">Test model connection</button><p class="manage-note">${providerData.models?.[providerData.selected]?'Model configured: '+esc(providerData.models[providerData.selected]):'Using CLI default model'}. ${providerData.connectionTests?.[providerData.selected]?.status==='tested'&&providerData.connectionTests[providerData.selected].model===(providerData.models?.[providerData.selected]||'')?'Connection tested this session.':'Connection has not been tested for this selection.'}</p>${providerCapabilities()}<p class="manage-note">Uses the selected CLI's existing login. Generation uses that provider account. Installed does not mean signed in.</p><details class="library-paths"><summary>Library locations</summary><p>New skills install to: <code>${esc(providerData.root)}</code><br>Scanned folders: ${(providerData.libraries||[providerData.root]).map(p=>`<code>${esc(p)}</code>`).join('<br>')}</p></details>`;
+function renderProviderControls() {
+  const el = $('#provider-controls');
+  if (!el || !providerData) return;
+  el.innerHTML = `<label for="author-provider">Author with</label><select id="author-provider">${providerData.providers.map((p) => `<option value="${p.id}" ${p.id === providerData.selected ? 'selected' : ''} ${!p.installed ? 'disabled' : ''}>${p.label}${p.installed ? '' : ' · CLI not installed'}</option>`).join('')}</select>${['opencode', 'cursor'].includes(providerData.selected) ? `<label for="author-model">Model · optional</label><input id="author-model" maxlength="160" value="${esc(providerData.models?.[providerData.selected] || '')}" placeholder="${providerData.selected === 'opencode' ? 'provider/model' : 'CLI default'}"><button class="button" id="save-author-model">Save model</button><p class="manage-note">${providerData.selected === 'opencode' ? 'Use a model ID from opencode models, including DeepSeek models you have configured there.' : 'Use a model ID from agent models.'} Leave this empty to use the tool’s configured default. A valid model ID does not confirm that your account has access. These authoring runs use your CLI configuration and may be saved in its history.</p>` : ''}${providerData.selected === 'opencode' ? '<button class="button" id="list-opencode-models">Browse installed CLI models</button>' : ''}<button class="button" id="test-provider">Test model connection</button><p class="manage-note">${providerData.models?.[providerData.selected] ? 'Model configured: ' + esc(providerData.models[providerData.selected]) : 'Using CLI default model'}. ${providerData.connectionTests?.[providerData.selected]?.status === 'tested' && providerData.connectionTests[providerData.selected].model === (providerData.models?.[providerData.selected] || '') ? 'Connection tested this session.' : 'Connection has not been tested for this selection.'}</p>${providerCapabilities()}<p class="manage-note">Uses the selected CLI's existing login. Generation uses that provider account. Installed does not mean signed in.</p><details class="library-paths"><summary>Library locations</summary><p>New skills install to: <code>${esc(providerData.root)}</code><br>Scanned folders: ${(providerData.libraries || [providerData.root]).map((p) => `<code>${esc(p)}</code>`).join('<br>')}</p></details>`;
 }
-function providerCapabilities(){return `<details class="agent-capabilities"><summary>Agent capabilities and destinations</summary><div class="table-scroll"><table><caption>Installed tools use their saved sign-in. History review requires additional isolation support.</caption><thead><tr><th scope="col">Agent</th><th scope="col">Authoring</th><th scope="col">History review</th><th scope="col">Skill destinations</th></tr></thead><tbody>${providerData.providers.map(p=>`<tr><th scope="row">${esc(p.label)}<small>${esc(p.company)}</small></th><td data-label="Authoring">${p.installed?'CLI found':'Install CLI first'}</td><td data-label="History review">${p.historyAnalysis?'Supported':'Not yet supported'}</td><td data-label="Skill destinations"><code>${esc(p.personalRoot)}</code><br><code>project/${esc(p.projectFolder)}</code><small>Personal folder discovered by ${(p.discoverableBy||[p.id]).map(harnessLabel).join(', ')}</small></td></tr>`).join('')}</tbody></table></div><p>OpenAI uses Codex; Anthropic uses Claude Code. DeepSeek is available only through a model already configured in your installed tool. Skill-Desk has no direct API-key settings.</p></details>`;}
-async function loadProviders(){try{providerData=await api('/api/providers');renderProviderControls();}catch(e){toast(e.message);}}
-document.addEventListener('change',async e=>{if(e.target.id!=='author-provider')return;e.target.disabled=true;try{await api('/api/provider',{provider:e.target.value});await loadProviders();toast('Authoring provider updated');}catch(error){toast(error.message);renderProviderControls();}});
+function providerCapabilities() {
+  return `<details class="agent-capabilities"><summary>Agent capabilities and destinations</summary><div class="table-scroll"><table><caption>Installed tools use their saved sign-in. History review requires additional isolation support.</caption><thead><tr><th scope="col">Agent</th><th scope="col">Authoring</th><th scope="col">History review</th><th scope="col">Skill destinations</th></tr></thead><tbody>${providerData.providers.map((p) => `<tr><th scope="row">${esc(p.label)}<small>${esc(p.company)}</small></th><td data-label="Authoring">${p.installed ? 'CLI found' : 'Install CLI first'}</td><td data-label="History review">${p.historyAnalysis ? 'Supported' : 'Not yet supported'}</td><td data-label="Skill destinations"><code>${esc(p.personalRoot)}</code><br><code>project/${esc(p.projectFolder)}</code><small>Personal folder discovered by ${(p.discoverableBy || [p.id]).map(harnessLabel).join(', ')}</small></td></tr>`).join('')}</tbody></table></div><p>OpenAI uses Codex; Anthropic uses Claude Code. DeepSeek is available only through a model already configured in your installed tool. Skill-Desk has no direct API-key settings.</p></details>`;
+}
+async function loadProviders() {
+  try {
+    providerData = await api('/api/providers');
+    renderProviderControls();
+  } catch (e) {
+    toast(e.message);
+  }
+}
+document.addEventListener('change', async (e) => {
+  if (e.target.id !== 'author-provider') return;
+  e.target.disabled = true;
+  try {
+    await api('/api/provider', { provider: e.target.value });
+    await loadProviders();
+    toast('Authoring provider updated');
+  } catch (error) {
+    toast(error.message);
+    renderProviderControls();
+  }
+});
 loadProviders();
 
-let harnessFilter='all';
-try{harnessFilter=localStorage.getItem('skill-desk-harness')||'all';}catch{}
-if(!['all','codex','claude','opencode','cursor'].includes(harnessFilter))harnessFilter='all';
-const agentLabels={codex:'Codex',claude:'Claude Code',opencode:'OpenCode',cursor:'Cursor'};
-const harnessLabel=h=>agentLabels[h]||h;
-function agentOptions(selected){return Object.entries(agentLabels).map(([id,label])=>`<option value="${id}" ${id===selected?'selected':''}>${label}</option>`).join('');}
-const harnessSelect=document.createElement('select');
-harnessSelect.id='skill-harness';harnessSelect.setAttribute('aria-label','Skill provider');
-harnessSelect.innerHTML='<option value="all">All providers</option><option value="codex">Codex</option><option value="claude">Claude Code</option><option value="opencode">OpenCode</option><option value="cursor">Cursor</option>';
-harnessSelect.value=harnessFilter;$('.topbar [data-theme-toggle]').before(harnessSelect);
-const matchesHarness=s=>harnessFilter==='all'||(s.harnesses||[]).includes(harnessFilter);
-const originalFiltered=filtered;
-filtered=function(){return originalFiltered().filter(matchesHarness);};
-const originalDetail=detail;
-function harnessBadges(s){return (s.harnesses||[]).map(h=>`<span class="tag" data-harness="${h}">${harnessLabel(h)}</span>`).join('');}
-function harnessActions(s){
- const missing=['codex','claude','opencode','cursor'].filter(h=>!(s.installedHarnesses||s.harnesses||[]).includes(h));
- return `<div class="harness-actions">${harnessBadges(s)}${missing.map(h=>`<button class="button" data-copy-harness="${h}" data-copy-skill="${esc(s.id)}">Install in ${harnessLabel(h)}</button>`).join('')}</div>`;
-}
-detail=function(s){const display={...s,invocationText:(s.invocationText||'').replaceAll('$'+skillName(s),skillInvocation(s)).replaceAll('/'+skillName(s),skillInvocation(s)).replaceAll(promptProvider(s)==='claude'?'Codex':'Claude',harnessLabel(promptProvider(s)))};return originalDetail(display).replace(`<h1>${esc(s.id)}</h1>`,`<h1>${esc(s.name||s.title)}</h1>`).replace('<div class="columns">',harnessActions(s)+'<div class="columns">').replace('Try this in Codex','Try this in '+harnessLabel(promptProvider(s)));};
-const renderWithManagement=render;
-render=function(){
- renderWithManagement();
- document.querySelectorAll('.skill-row').forEach(el=>{
-  const s=skills.find(x=>x.id===el.dataset.skill);if(!s)return;
-  el.querySelector('.row-name').textContent=s.name||s.title;
-  if(harnessFilter==='all')el.querySelector('.row-meta').insertAdjacentHTML('beforeend','<br>'+harnessBadges(s));
- });
+let harnessFilter = 'all';
+try {
+  harnessFilter = localStorage.getItem('skill-desk-harness') || 'all';
+} catch {}
+if (!['all', 'codex', 'claude', 'opencode', 'cursor'].includes(harnessFilter))
+  harnessFilter = 'all';
+const agentLabels = {
+  codex: 'Codex',
+  claude: 'Claude Code',
+  opencode: 'OpenCode',
+  cursor: 'Cursor',
 };
-harnessSelect.addEventListener('change',()=>{
- harnessFilter=harnessSelect.value;
- try{localStorage.setItem('skill-desk-harness',harnessFilter);}catch{}
- if(view==='overview')view='all';
- render();
+const harnessLabel = (h) => agentLabels[h] || h;
+function agentOptions(selected) {
+  return Object.entries(agentLabels)
+    .map(
+      ([id, label]) =>
+        `<option value="${id}" ${id === selected ? 'selected' : ''}>${label}</option>`,
+    )
+    .join('');
+}
+const harnessSelect = document.createElement('select');
+harnessSelect.id = 'skill-harness';
+harnessSelect.setAttribute('aria-label', 'Skill provider');
+harnessSelect.innerHTML =
+  '<option value="all">All providers</option><option value="codex">Codex</option><option value="claude">Claude Code</option><option value="opencode">OpenCode</option><option value="cursor">Cursor</option>';
+harnessSelect.value = harnessFilter;
+$('.topbar [data-theme-toggle]').before(harnessSelect);
+const matchesHarness = (s) =>
+  harnessFilter === 'all' || (s.harnesses || []).includes(harnessFilter);
+const originalFiltered = filtered;
+filtered = function () {
+  return originalFiltered().filter(matchesHarness);
+};
+const originalDetail = detail;
+function harnessBadges(s) {
+  return (s.harnesses || [])
+    .map((h) => `<span class="tag" data-harness="${h}">${harnessLabel(h)}</span>`)
+    .join('');
+}
+function harnessActions(s) {
+  const missing = ['codex', 'claude', 'opencode', 'cursor'].filter(
+    (h) => !(s.installedHarnesses || s.harnesses || []).includes(h),
+  );
+  return `<div class="harness-actions">${harnessBadges(s)}${missing.map((h) => `<button class="button" data-copy-harness="${h}" data-copy-skill="${esc(s.id)}">Install in ${harnessLabel(h)}</button>`).join('')}</div>`;
+}
+detail = function (s) {
+  const display = {
+    ...s,
+    invocationText: (s.invocationText || '')
+      .replaceAll('$' + skillName(s), skillInvocation(s))
+      .replaceAll('/' + skillName(s), skillInvocation(s))
+      .replaceAll(
+        promptProvider(s) === 'claude' ? 'Codex' : 'Claude',
+        harnessLabel(promptProvider(s)),
+      ),
+  };
+  return originalDetail(display)
+    .replace(`<h1>${esc(s.id)}</h1>`, `<h1>${esc(s.name || s.title)}</h1>`)
+    .replace('<div class="columns">', harnessActions(s) + '<div class="columns">')
+    .replace('Try this in Codex', 'Try this in ' + harnessLabel(promptProvider(s)));
+};
+const renderWithManagement = render;
+render = function () {
+  renderWithManagement();
+  document.querySelectorAll('.skill-row').forEach((el) => {
+    const s = skills.find((x) => x.id === el.dataset.skill);
+    if (!s) return;
+    el.querySelector('.row-name').textContent = s.name || s.title;
+    if (harnessFilter === 'all')
+      el.querySelector('.row-meta').insertAdjacentHTML('beforeend', '<br>' + harnessBadges(s));
+  });
+};
+harnessSelect.addEventListener('change', () => {
+  harnessFilter = harnessSelect.value;
+  try {
+    localStorage.setItem('skill-desk-harness', harnessFilter);
+  } catch {}
+  if (view === 'overview') view = 'all';
+  render();
 });
-document.addEventListener('click',async e=>{
- const b=e.target.closest('[data-copy-harness]');if(!b)return;
- if(activeDraft||activeJob){toast('Finish or discard the current preview first.');return;}
- b.disabled=true;
- try{
-  const result=await api('/api/copy-preview',{id:b.dataset.copySkill,target:b.dataset.copyHarness});
-  previewDraft(result);
- }catch(error){toast(error.message);}finally{b.disabled=false;}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-copy-harness]');
+  if (!b) return;
+  if (activeDraft || activeJob) {
+    toast('Finish or discard the current preview first.');
+    return;
+  }
+  b.disabled = true;
+  try {
+    const result = await api('/api/copy-preview', {
+      id: b.dataset.copySkill,
+      target: b.dataset.copyHarness,
+    });
+    previewDraft(result);
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    b.disabled = false;
+  }
 });
 render();
 
 // The desktop service uses a new port after restarting; save appearance with the library.
-let themeSave=Promise.resolve();
-window.skillDeskSaveTheme=value=>{themeSave=themeSave.then(()=>api('/api/preferences',{theme:value})).catch(()=>toast('Could not save the theme. Please retry.'));};
-
+let themeSave = Promise.resolve();
+window.skillDeskSaveTheme = (value) => {
+  themeSave = themeSave
+    .then(() => api('/api/preferences', { theme: value }))
+    .catch(() => toast('Could not save the theme. Please retry.'));
+};
 
 // Portable packages contain only explicitly selected skill folders.
-function exportPackageForm(){
- const rows=skills.filter(matchesHarness);
- showDialog(dialogHeader('Export skills package')+`<p>Select skills to move to another device. Full folders are included. Review private text and supporting files before sharing; credentials and app state are not part of the package metadata.</p><div class="manage-actions"><button class="button" id="package-select-all">Select all shown</button><button class="button" id="package-select-none">Clear selection</button></div><div class="package-list">${rows.map(s=>`<label class="checkbox-label"><input type="checkbox" name="package-skill" value="${esc(s.id)}"> ${esc(s.name||s.id)} ${harnessBadges(s)}</label>`).join('')||'<p>No skills for this provider.</p>'}</div><p id="form-message" role="status"></p><button class="button primary" id="prepare-export">Review package</button>`);
+function exportPackageForm() {
+  const rows = skills.filter(matchesHarness);
+  showDialog(
+    dialogHeader('Export skills package') +
+      `<p>Select skills to move to another device. Full folders are included. Review private text and supporting files before sharing; credentials and app state are not part of the package metadata.</p><div class="manage-actions"><button class="button" id="package-select-all">Select all shown</button><button class="button" id="package-select-none">Clear selection</button></div><div class="package-list">${rows.map((s) => `<label class="checkbox-label"><input type="checkbox" name="package-skill" value="${esc(s.id)}"> ${esc(s.name || s.id)} ${harnessBadges(s)}</label>`).join('') || '<p>No skills for this provider.</p>'}</div><p id="form-message" role="status"></p><button class="button primary" id="prepare-export">Review package</button>`,
+  );
 }
-function importPackageForm(){
- showDialog(dialogHeader('Import skills package')+`<p>Choose a package exported by Skill-Desk. Review the instructions before installing. Existing skills are never overwritten.</p><label for="package-file">Package file · up to 100 MB</label><input id="package-file" type="file" accept=".zip,application/zip"><label for="package-target">Install into</label><select id="package-target"><option value="shared">Default skill library</option><option value="codex">Codex</option><option value="claude">Claude Code</option><option value="opencode">OpenCode</option><option value="cursor">Cursor</option></select><p id="form-message" role="status"></p><button class="button primary" id="prepare-package">Preview package</button>`);
+function importPackageForm() {
+  showDialog(
+    dialogHeader('Import skills package') +
+      `<p>Choose a package exported by Skill-Desk. Review the instructions before installing. Existing skills are never overwritten.</p><label for="package-file">Package file · up to 100 MB</label><input id="package-file" type="file" accept=".zip,application/zip"><label for="package-target">Install into</label><select id="package-target"><option value="shared">Default skill library</option><option value="codex">Codex</option><option value="claude">Claude Code</option><option value="opencode">OpenCode</option><option value="cursor">Cursor</option></select><p id="form-message" role="status"></p><button class="button primary" id="prepare-package">Preview package</button>`,
+  );
 }
-function isPackageDuplicate(skill){return /already exists|already installed|Installed from this package/.test(skill.conflict||'');}
-function previewPackage(result){
- activeDraft=result;
- if(result.recommendationName&&result.candidates.length===1){previewRecommendation(result);return;}
- showDialog(dialogHeader('Review skills')+`<p>Destination: ${esc(result.destination||'Default library')}</p><p class="manage-note">Discovered by ${(result.discoverableBy||[]).map(harnessLabel).join(', ')||harnessLabel(result.target||'codex')}.</p><p>Select the skills to install. Skills with a conflict cannot be selected. Each blocked skill shows the reason below. Included scripts are copied, never executed by the import.</p>${result.candidates.some(isPackageDuplicate)?`<div class="package-conflicts"><label class="checkbox-label"><input type="checkbox" id="hide-package-duplicates"> Hide duplicates (${result.candidates.filter(isPackageDuplicate).length})</label><p id="package-conflict-summary" role="status"></p><p>Skill-Desk keeps the existing copy and does not overwrite it. To replace it, discard this preview, remove the existing skill in Manage (it is archived), then import the package again. For a separately managed skill, remove it through its source CLI first.</p></div>`:''}<div class="package-list" id="package-candidates">${result.candidates.map(s=>`<article class="manage-row" data-conflict="${isPackageDuplicate(s)}"><div><label class="checkbox-label"><input type="checkbox" name="package-candidate" value="${esc(s.candidate)}" ${s.conflict?'disabled':'checked'}> ${esc(s.name)}</label><p>${esc(s.description)}</p>${harnessBadges(s)}${(s.compatibility?.issues||[]).map(x=>`<p class="manage-note">${esc(x.message)}</p>`).join('')}${s.conflict?`<p class="form-error">${esc(s.conflict)}</p>`:''}<details><summary>Review instructions and ${s.files.length} files</summary><ul>${s.files.map(f=>`<li>${esc(f)}</li>`).join('')}</ul><pre class="skill-preview">${esc(s.content)}</pre></details></div></article>`).join('')}</div><p id="form-message" role="status"></p><div class="manage-actions"><button class="button" id="discard-draft">Discard preview</button><button class="button primary" id="install-package">Install selected skills (0)</button></div>`);
- updatePackageSelection();
+function isPackageDuplicate(skill) {
+  return /already exists|already installed|Installed from this package/.test(skill.conflict || '');
 }
-function previewRecommendation(result){
- const skill=result.candidates[0],agent=harnessLabel(result.target||'codex');
- showDialog(dialogHeader('Review & install')+`<h3>${esc(displaySkillName(skill.name))}</h3><p>Install for ${esc(agent)}${result.project?' in '+esc(result.project.name):' in your personal library'}.</p><details class="recommendation-destination"><summary>Installation folder</summary><p class="source-path">${esc(result.destination)}</p></details><p>${esc(skill.description)}</p>${(skill.compatibility?.issues||[]).map(x=>`<p class="manage-note">${esc(x.message)}</p>`).join('')}<h4>Skill instructions</h4><pre class="skill-preview recommendation-instructions">${esc(skill.content)}</pre><details><summary>Included files (${skill.files.length})</summary><ul>${skill.files.map(f=>`<li>${esc(f)}</li>`).join('')}</ul></details><input type="checkbox" name="package-candidate" value="${esc(skill.candidate)}" hidden ${skill.conflict?'disabled':'checked'}>${skill.conflict?`<p class="form-error">${esc(skill.conflict)}</p>`:''}<p id="form-message" role="status"></p><div class="manage-actions"><button class="button" id="discard-draft">Back to suggestions</button><button class="button primary" id="install-package">Install for ${esc(agent)}</button></div>`);
- updatePackageSelection();
-}
-function updatePackageSelection(){
- const button=$('#install-package');if(!button)return;
- const count=document.querySelectorAll('[name=package-candidate]:checked:not(:disabled)').length;
- button.textContent=activeDraft?.recommendationName&&activeDraft.candidates.length===1?`Install for ${harnessLabel(activeDraft.target||'codex')}`:`Install selected skills (${count})`;button.disabled=packageInstalling||count===0;
- const hidden=$('#hide-package-duplicates')?.checked||false;
- const duplicates=document.querySelectorAll('#package-candidates [data-conflict="true"]');
- duplicates.forEach(row=>row.hidden=hidden);
- if($('#package-conflict-summary'))$('#package-conflict-summary').textContent=`${duplicates.length} duplicate skill${duplicates.length===1?"":"s"} ${hidden?"hidden":"shown"} and excluded from installation because a skill with that name is already installed. ${hidden?"Uncheck Hide duplicates to inspect each conflict.":"Each duplicate below shows where the conflict was found."}`;
-}
-modal.addEventListener('change',e=>{if(e.target.name==='package-candidate'||e.target.id==='hide-package-duplicates')updatePackageSelection();});
-document.addEventListener('click',async e=>{
- const b=e.target.closest('button');if(!b||!['export-package','import-package','package-select-all','package-select-none','prepare-export','prepare-package','install-package'].includes(b.id))return;
- try{
-  if(b.id==='export-package'){if(packageInstalling){toast('Wait for the package installation to finish.');return;}exportPackageForm();return;}
-  if(b.id==='import-package'){if(packageInstalling){toast('Wait for the package installation to finish.');return;}if(activeJob){showJobProgress();return;}if(activeDraft){previewDraft(activeDraft);return;}importPackageForm();return;}
-  if(b.id==='package-select-all'||b.id==='package-select-none')document.querySelectorAll('[name=package-skill]').forEach(x=>x.checked=b.id==='package-select-all');
-  if(b.id==='prepare-export'){
-   const ids=Array.from(document.querySelectorAll('[name=package-skill]:checked'),x=>x.value);
-   if(!ids.length)throw Error('Select at least one skill.');
-   b.disabled=true;$('#form-message').textContent='Preparing package…';
-   const result=await api('/api/package-export',{ids});
-   showDialog(dialogHeader('Review export')+`<p>${result.manifest.skills.length} skills · ${(result.bytes/1000000).toFixed(2)} MB. The download contains the actual files listed below. Check them for private information before sharing.</p><div class="package-list">${result.manifest.skills.map(s=>`<details><summary>${esc(s.name)} · ${Object.keys(s.files).length} files</summary><ul>${Object.keys(s.files).map(f=>`<li>${esc(f)}</li>`).join('')}</ul></details>`).join('')}</div><p id="form-message" role="status"></p><div class="manage-actions"><button class="button" id="download-package">Download package</button><button class="button primary" id="nearby-send-export">Send to device</button></div>`);
-   $('#nearby-send-export').onclick=()=>openNearby('send',result.export);
-   $('#download-package').textContent='Save package to Downloads';
-   $('#download-package').onclick=async()=>{const button=$('#download-package');button.disabled=true;try{const saved=await api('/api/package-save',{export:result.export});$('#form-message').textContent='Saved to '+saved.path+'. Transfer this file to your other device and choose Import package.';}catch(err){errorMessage(err.message);button.disabled=false;}};
+function previewPackage(result) {
+  activeDraft = result;
+  if (result.recommendationName && result.candidates.length === 1) {
+    previewRecommendation(result);
+    return;
   }
-  if(b.id==='prepare-package'){
-   const file=$('#package-file').files[0];if(!file||file.size>100000000)throw Error('Choose a package of up to 100 MB.');
-   const target=$('#package-target').value;b.disabled=true;$('#form-message').textContent='Reading and validating package…';
-   const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(Error('Could not read package.'));reader.readAsDataURL(file);});
-   previewPackage(await api('/api/package-preview',{data,target}));
+  showDialog(
+    dialogHeader('Review skills') +
+      `<p>Destination: ${esc(result.destination || 'Default library')}</p><p class="manage-note">Discovered by ${(result.discoverableBy || []).map(harnessLabel).join(', ') || harnessLabel(result.target || 'codex')}.</p><p>Select the skills to install. Skills with a conflict cannot be selected. Each blocked skill shows the reason below. Included scripts are copied, never executed by the import.</p>${result.candidates.some(isPackageDuplicate) ? `<div class="package-conflicts"><label class="checkbox-label"><input type="checkbox" id="hide-package-duplicates"> Hide duplicates (${result.candidates.filter(isPackageDuplicate).length})</label><p id="package-conflict-summary" role="status"></p><p>Skill-Desk keeps the existing copy and does not overwrite it. To replace it, discard this preview, remove the existing skill in Manage (it is archived), then import the package again. For a separately managed skill, remove it through its source CLI first.</p></div>` : ''}<div class="package-list" id="package-candidates">${result.candidates.map((s) => `<article class="manage-row" data-conflict="${isPackageDuplicate(s)}"><div><label class="checkbox-label"><input type="checkbox" name="package-candidate" value="${esc(s.candidate)}" ${s.conflict ? 'disabled' : 'checked'}> ${esc(s.name)}</label><p>${esc(s.description)}</p>${harnessBadges(s)}${(s.compatibility?.issues || []).map((x) => `<p class="manage-note">${esc(x.message)}</p>`).join('')}${s.conflict ? `<p class="form-error">${esc(s.conflict)}</p>` : ''}<details><summary>Review instructions and ${s.files.length} files</summary><ul>${s.files.map((f) => `<li>${esc(f)}</li>`).join('')}</ul><pre class="skill-preview">${esc(s.content)}</pre></details></div></article>`).join('')}</div><p id="form-message" role="status"></p><div class="manage-actions"><button class="button" id="discard-draft">Discard preview</button><button class="button primary" id="install-package">Install selected skills (0)</button></div>`,
+  );
+  updatePackageSelection();
+}
+function previewRecommendation(result) {
+  const skill = result.candidates[0],
+    agent = harnessLabel(result.target || 'codex');
+  showDialog(
+    dialogHeader('Review & install') +
+      `<h3>${esc(displaySkillName(skill.name))}</h3><p>Install for ${esc(agent)}${result.project ? ' in ' + esc(result.project.name) : ' in your personal library'}.</p><details class="recommendation-destination"><summary>Installation folder</summary><p class="source-path">${esc(result.destination)}</p></details><p>${esc(skill.description)}</p>${(skill.compatibility?.issues || []).map((x) => `<p class="manage-note">${esc(x.message)}</p>`).join('')}<h4>Skill instructions</h4><pre class="skill-preview recommendation-instructions">${esc(skill.content)}</pre><details><summary>Included files (${skill.files.length})</summary><ul>${skill.files.map((f) => `<li>${esc(f)}</li>`).join('')}</ul></details><input type="checkbox" name="package-candidate" value="${esc(skill.candidate)}" hidden ${skill.conflict ? 'disabled' : 'checked'}>${skill.conflict ? `<p class="form-error">${esc(skill.conflict)}</p>` : ''}<p id="form-message" role="status"></p><div class="manage-actions"><button class="button" id="discard-draft">Back to suggestions</button><button class="button primary" id="install-package">Install for ${esc(agent)}</button></div>`,
+  );
+  updatePackageSelection();
+}
+function updatePackageSelection() {
+  const button = $('#install-package');
+  if (!button) return;
+  const count = document.querySelectorAll('[name=package-candidate]:checked:not(:disabled)').length;
+  button.textContent =
+    activeDraft?.recommendationName && activeDraft.candidates.length === 1
+      ? `Install for ${harnessLabel(activeDraft.target || 'codex')}`
+      : `Install selected skills (${count})`;
+  button.disabled = packageInstalling || count === 0;
+  const hidden = $('#hide-package-duplicates')?.checked || false;
+  const duplicates = document.querySelectorAll('#package-candidates [data-conflict="true"]');
+  duplicates.forEach((row) => (row.hidden = hidden));
+  if ($('#package-conflict-summary'))
+    $('#package-conflict-summary').textContent =
+      `${duplicates.length} duplicate skill${duplicates.length === 1 ? '' : 's'} ${hidden ? 'hidden' : 'shown'} and excluded from installation because a skill with that name is already installed. ${hidden ? 'Uncheck Hide duplicates to inspect each conflict.' : 'Each duplicate below shows where the conflict was found.'}`;
+}
+modal.addEventListener('change', (e) => {
+  if (e.target.name === 'package-candidate' || e.target.id === 'hide-package-duplicates')
+    updatePackageSelection();
+});
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('button');
+  if (
+    !b ||
+    ![
+      'export-package',
+      'import-package',
+      'package-select-all',
+      'package-select-none',
+      'prepare-export',
+      'prepare-package',
+      'install-package',
+    ].includes(b.id)
+  )
+    return;
+  try {
+    if (b.id === 'export-package') {
+      if (packageInstalling) {
+        toast('Wait for the package installation to finish.');
+        return;
+      }
+      exportPackageForm();
+      return;
+    }
+    if (b.id === 'import-package') {
+      if (packageInstalling) {
+        toast('Wait for the package installation to finish.');
+        return;
+      }
+      if (activeJob) {
+        showJobProgress();
+        return;
+      }
+      if (activeDraft) {
+        previewDraft(activeDraft);
+        return;
+      }
+      importPackageForm();
+      return;
+    }
+    if (b.id === 'package-select-all' || b.id === 'package-select-none')
+      document
+        .querySelectorAll('[name=package-skill]')
+        .forEach((x) => (x.checked = b.id === 'package-select-all'));
+    if (b.id === 'prepare-export') {
+      const ids = Array.from(
+        document.querySelectorAll('[name=package-skill]:checked'),
+        (x) => x.value,
+      );
+      if (!ids.length) throw Error('Select at least one skill.');
+      b.disabled = true;
+      $('#form-message').textContent = 'Preparing package…';
+      const result = await api('/api/package-export', { ids });
+      showDialog(
+        dialogHeader('Review export') +
+          `<p>${result.manifest.skills.length} skills · ${(result.bytes / 1000000).toFixed(2)} MB. The download contains the actual files listed below. Check them for private information before sharing.</p><div class="package-list">${result.manifest.skills
+            .map(
+              (s) =>
+                `<details><summary>${esc(s.name)} · ${Object.keys(s.files).length} files</summary><ul>${Object.keys(
+                  s.files,
+                )
+                  .map((f) => `<li>${esc(f)}</li>`)
+                  .join('')}</ul></details>`,
+            )
+            .join(
+              '',
+            )}</div><p id="form-message" role="status"></p><div class="manage-actions"><button class="button" id="download-package">Download package</button><button class="button primary" id="nearby-send-export">Send to device</button></div>`,
+      );
+      $('#nearby-send-export').onclick = () => openNearby('send', result.export);
+      $('#download-package').textContent = 'Save package to Downloads';
+      $('#download-package').onclick = async () => {
+        const button = $('#download-package');
+        button.disabled = true;
+        try {
+          const saved = await api('/api/package-save', { export: result.export });
+          $('#form-message').textContent =
+            'Saved to ' +
+            saved.path +
+            '. Transfer this file to your other device and choose Import package.';
+        } catch (err) {
+          errorMessage(err.message);
+          button.disabled = false;
+        }
+      };
+    }
+    if (b.id === 'prepare-package') {
+      const file = $('#package-file').files[0];
+      if (!file || file.size > 100000000) throw Error('Choose a package of up to 100 MB.');
+      const target = $('#package-target').value;
+      b.disabled = true;
+      $('#form-message').textContent = 'Reading and validating package…';
+      const data = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(',')[1]);
+        reader.onerror = () => reject(Error('Could not read package.'));
+        reader.readAsDataURL(file);
+      });
+      previewPackage(await api('/api/package-preview', { data, target }));
+    }
+    if (b.id === 'install-package') {
+      const selected = Array.from(
+        document.querySelectorAll('[name=package-candidate]:checked'),
+        (x) => x.value,
+      );
+      if (!selected.length) throw Error('Select at least one skill without a conflict.');
+      b.disabled = true;
+      packageInstalling = true;
+      const result = activeDraft;
+      let installed = 0;
+      const failures = [],
+        installedNames = [];
+      for (const candidate of selected) {
+        $('#form-message').textContent =
+          `Installing ${installed + failures.length + 1} of ${selected.length}…`;
+        try {
+          const installation = await api('/api/install', {
+            draft: result.draft,
+            candidate,
+            reviewDigest: result.candidates.find((s) => s.candidate === candidate).treeDigest,
+          });
+          result.target = installation.agent;
+          installed++;
+          const s = result.candidates.find((x) => x.candidate === candidate);
+          s.conflict = 'Installed from this package.';
+          installedNames.push(s.name);
+        } catch (err) {
+          failures.push(err.message);
+        }
+      }
+      await loadManage();
+      await syncCatalog();
+      if (failures.length) {
+        previewPackage(result);
+        $('#form-message').textContent = `Installed ${installed}. ${failures.join(' ')}`;
+      } else {
+        await api('/api/discard', { draft: result.draft });
+        activeDraft = null;
+        modal.close();
+        render();
+        toast(`Installed ${installed} skills from package`);
+        showFirstSteps(result, installedNames);
+      }
+    }
+  } catch (err) {
+    errorMessage(err.message);
+  } finally {
+    if (b.id === 'install-package') {
+      packageInstalling = false;
+      updatePackageSelection();
+    } else if (b.isConnected) b.disabled = false;
   }
-  if(b.id==='install-package'){
-   const selected=Array.from(document.querySelectorAll('[name=package-candidate]:checked'),x=>x.value);
-   if(!selected.length)throw Error('Select at least one skill without a conflict.');
-   b.disabled=true;packageInstalling=true;const result=activeDraft;let installed=0;const failures=[],installedNames=[];
-   for(const candidate of selected){$('#form-message').textContent=`Installing ${installed+failures.length+1} of ${selected.length}…`;try{const installation=await api('/api/install',{draft:result.draft,candidate,reviewDigest:result.candidates.find(s=>s.candidate===candidate).treeDigest});result.target=installation.agent;installed++;const s=result.candidates.find(x=>x.candidate===candidate);s.conflict='Installed from this package.';installedNames.push(s.name);}catch(err){failures.push(err.message);}}
-   await loadManage();await syncCatalog();
-   if(failures.length){previewPackage(result);$('#form-message').textContent=`Installed ${installed}. ${failures.join(' ')}`;}
-   else{await api('/api/discard',{draft:result.draft});activeDraft=null;modal.close();render();toast(`Installed ${installed} skills from package`);showFirstSteps(result,installedNames);}
-  }
- }catch(err){errorMessage(err.message);}finally{if(b.id==='install-package'){packageInstalling=false;updatePackageSelection();}else if(b.isConnected)b.disabled=false;}
 });
 
-
-let nearbyView=null, nearbyTimer=null, nearbyStop=Promise.resolve();
-async function openNearby(mode,exportId=null){
- if(activeDraft||activeJob||packageInstalling){toast('Finish the current skill job or preview first.');return;}
- if(nearbyView)return;
- const viewState={mode,exportId};nearbyView=viewState;
- try{
-  await nearbyStop;
-  const state=await api('/api/nearby-start',{mode});
-  if(nearbyView!==viewState){await api('/api/nearby-stop',{});return;}
-  showDialog(dialogHeader(mode==='receive'?'Receive from another device':'Send to another device')+`<p>Keep Skill-Desk open on both devices on the same local network. Closing this window stops sharing.</p><div id="nearby-identity"></div><p class="manage-note" id="nearby-warning"></p>${mode==='send'?`<label for="nearby-peer">Receiving device</label><select id="nearby-peer"><option value="">Looking for devices…</option></select><p class="manage-note">Open Receive on the other device. If it does not appear, use its displayed address.</p><details><summary>Connect using an address</summary><label for="nearby-address">Receiver address and port</label><input id="nearby-address" placeholder="192.168.1.20:53317"><button class="button" id="nearby-probe">Find device</button></details><p>Receiver security code: <code id="nearby-peer-code">Choose a device</code></p><label class="checkbox-label"><input type="checkbox" id="nearby-confirm"> I checked that this code matches the receiving device.</label><label for="nearby-pin">Six-digit PIN shown on the receiver</label><input id="nearby-pin" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="000000"><button class="button primary" id="nearby-send">Request transfer</button>`:''}<div id="nearby-offer"></div><div id="nearby-progress"><progress max="100" value="0" aria-label="Transfer progress"></progress><span></span></div><p id="nearby-message" role="status"></p><div id="nearby-review" hidden><label for="nearby-target">Install into</label><select id="nearby-target"><option value="shared">Default skill library</option><option value="codex">Codex</option><option value="claude">Claude Code</option><option value="opencode">OpenCode</option><option value="cursor">Cursor</option></select><button class="button primary" id="nearby-preview">Review received package</button></div><p id="form-message" role="alert"></p><p class="manage-note">Sharing stops after 10 minutes, or after 60 seconds without this window checking in. Only selected packages are shared; your installed library stays private.</p><button class="button" id="nearby-stop">Stop sharing</button>`);
-  paintNearby(state);
-  async function poll(){
-   if(nearbyView!==viewState)return;
-   try{const next=await api('/api/nearby-status',{});if(nearbyView!==viewState)return;paintNearby(next);if(!next.active)return;}
-   catch(error){if(nearbyView!==viewState)return;errorMessage('Connection lost. Sharing will expire automatically. '+error.message);}
-   if(nearbyView===viewState)nearbyTimer=setTimeout(poll,1000);
+let nearbyView = null,
+  nearbyTimer = null,
+  nearbyStop = Promise.resolve();
+async function openNearby(mode, exportId = null) {
+  if (activeDraft || activeJob || packageInstalling) {
+    toast('Finish the current skill job or preview first.');
+    return;
   }
-  nearbyTimer=setTimeout(poll,1000);
- }catch(error){nearbyView=null;errorMessage(error.message);}
+  if (nearbyView) return;
+  const viewState = { mode, exportId };
+  nearbyView = viewState;
+  try {
+    await nearbyStop;
+    const state = await api('/api/nearby-start', { mode });
+    if (nearbyView !== viewState) {
+      await api('/api/nearby-stop', {});
+      return;
+    }
+    showDialog(
+      dialogHeader(mode === 'receive' ? 'Receive from another device' : 'Send to another device') +
+        `<p>Keep Skill-Desk open on both devices on the same local network. Closing this window stops sharing.</p><div id="nearby-identity"></div><p class="manage-note" id="nearby-warning"></p>${mode === 'send' ? `<label for="nearby-peer">Receiving device</label><select id="nearby-peer"><option value="">Looking for devices…</option></select><p class="manage-note">Open Receive on the other device. If it does not appear, use its displayed address.</p><details><summary>Connect using an address</summary><label for="nearby-address">Receiver address and port</label><input id="nearby-address" placeholder="192.168.1.20:53317"><button class="button" id="nearby-probe">Find device</button></details><p>Receiver security code: <code id="nearby-peer-code">Choose a device</code></p><label class="checkbox-label"><input type="checkbox" id="nearby-confirm"> I checked that this code matches the receiving device.</label><label for="nearby-pin">Six-digit PIN shown on the receiver</label><input id="nearby-pin" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="000000"><button class="button primary" id="nearby-send">Request transfer</button>` : ''}<div id="nearby-offer"></div><div id="nearby-progress"><progress max="100" value="0" aria-label="Transfer progress"></progress><span></span></div><p id="nearby-message" role="status"></p><div id="nearby-review" hidden><label for="nearby-target">Install into</label><select id="nearby-target"><option value="shared">Default skill library</option><option value="codex">Codex</option><option value="claude">Claude Code</option><option value="opencode">OpenCode</option><option value="cursor">Cursor</option></select><button class="button primary" id="nearby-preview">Review received package</button></div><p id="form-message" role="alert"></p><p class="manage-note">Sharing stops after 10 minutes, or after 60 seconds without this window checking in. Only selected packages are shared; your installed library stays private.</p><button class="button" id="nearby-stop">Stop sharing</button>`,
+    );
+    paintNearby(state);
+    async function poll() {
+      if (nearbyView !== viewState) return;
+      try {
+        const next = await api('/api/nearby-status', {});
+        if (nearbyView !== viewState) return;
+        paintNearby(next);
+        if (!next.active) return;
+      } catch (error) {
+        if (nearbyView !== viewState) return;
+        errorMessage('Connection lost. Sharing will expire automatically. ' + error.message);
+      }
+      if (nearbyView === viewState) nearbyTimer = setTimeout(poll, 1000);
+    }
+    nearbyTimer = setTimeout(poll, 1000);
+  } catch (error) {
+    nearbyView = null;
+    errorMessage(error.message);
+  }
 }
-function paintNearby(state){
- if(!nearbyView)return;
- if(['sent','received'].includes(state.phase)&&state.active){
-  nearbyView.state=state;
-  if(!nearbyView.completed){nearbyView.completed=true;showDialog(dialogHeader('Transfer successful')+`<div class="nearby-success"><h3>${state.phase==='sent'?'Package sent successfully':'Package received successfully'}</h3><p>${state.phase==='sent'?'The receiving device can now review and install the skills.':'Your package is ready. Review and select the skills before installing them.'}</p></div>${state.phase==='received'?`<label for="nearby-target">Install into</label><select id="nearby-target"><option value="shared">Default skill library</option><option value="codex">Codex</option><option value="claude">Claude Code</option><option value="opencode">OpenCode</option><option value="cursor">Cursor</option></select><button class="button primary" id="nearby-preview">Review received package</button><p class="manage-note">Closing without reviewing discards the received package.</p>`:''}<p id="form-message" role="alert"></p><button class="button" id="nearby-stop">Close and stop sharing</button>`);}
-  return;
- }
- if(!$('#nearby-message')){if(!state.active&&$('#nearby-preview')){$('#nearby-preview').disabled=true;errorMessage('Sharing expired. Receive the package again to review it.');}return;}
- nearbyView.state=state;
- if(!state.active){$('#nearby-message').textContent='Sharing has stopped. Close this window and reopen Send or Receive to try again.';document.querySelectorAll('#nearby-send,#nearby-probe,#nearby-preview,#nearby-accept,#nearby-reject').forEach(b=>b.disabled=true);return;}
- $('#nearby-identity').innerHTML=`<p>Your device: <strong>${esc(state.alias)}</strong></p>${state.mode==='receive'?`<div class="nearby-codes"><div><small>Receiver PIN</small><strong>${esc(state.pin)}</strong></div><div><small>Security code · compare on sender</small><code>${esc(state.code)}</code></div></div><p class="manage-note">Address: ${state.addresses.map(esc).join(' or ')||'No local IPv4 address found. Connect to your local network.'}</p>`:''}`;
- $('#nearby-warning').textContent=state.warning||'';
- $('#nearby-message').textContent=(state.message||'Ready. Waiting for another device.')+(state.phase==='failed'?' No skills were installed by this transfer. Check the receiving device and connection, then retry or stop sharing.':'');
- const progressing=['sending','transferring','receiving','waiting'].includes(state.phase);
- $('#nearby-progress').hidden=!progressing;
- $('#nearby-progress progress').value=state.progress;
- $('#nearby-progress span').textContent=state.phase==='waiting'?'Waiting for acceptance…':state.progress+'%';
- $('#nearby-review').hidden=state.phase!=='received';
- const offer=state.phase==='offered'?state.incoming:null;
- const offerKey=offer?.id||'';
- if($('#nearby-offer').dataset.offer!==offerKey){$('#nearby-offer').dataset.offer=offerKey;$('#nearby-offer').innerHTML=offer?`<div class="nearby-offer"><h3>Incoming skill package</h3><p>${esc(offer.alias)} · ${esc(offer.ip)} · ${(offer.size/1000000).toFixed(2)} MB</p><p>Accept only the transfer you requested. Acceptance receives a package; it does not install skills.</p><div class="manage-actions"><button class="button" id="nearby-reject">Reject</button><button class="button primary" id="nearby-accept">Accept package</button></div></div>`:'';}
- if(state.mode==='send'){
-  const select=$('#nearby-peer'), previous=select.value;
-  const options='<option value="">Choose a receiving device</option>'+state.peers.map(p=>`<option value="${esc(p.id)}">${esc(p.alias)} · ${esc(p.ip)}</option>`).join('');
-  if(select.innerHTML!==options){select.innerHTML=options;select.value=previous;if(select.value!==previous){$('#nearby-confirm').checked=false;$('#nearby-pin').value='';}}
-  const peer=state.peers.find(p=>p.id===select.value);$('#nearby-peer-code').textContent=peer?.code||'Choose a device';
-  const busy=['waiting','sending'].includes(state.phase);
-  $('#nearby-send').textContent=state.phase==='failed'?'Retry transfer':'Request transfer';$('#nearby-send').disabled=busy||state.phase==='sent';select.disabled=busy;$('#nearby-probe').disabled=busy;
- }
+function paintNearby(state) {
+  if (!nearbyView) return;
+  if (['sent', 'received'].includes(state.phase) && state.active) {
+    nearbyView.state = state;
+    if (!nearbyView.completed) {
+      nearbyView.completed = true;
+      showDialog(
+        dialogHeader('Transfer successful') +
+          `<div class="nearby-success"><h3>${state.phase === 'sent' ? 'Package sent successfully' : 'Package received successfully'}</h3><p>${state.phase === 'sent' ? 'The receiving device can now review and install the skills.' : 'Your package is ready. Review and select the skills before installing them.'}</p></div>${state.phase === 'received' ? `<label for="nearby-target">Install into</label><select id="nearby-target"><option value="shared">Default skill library</option><option value="codex">Codex</option><option value="claude">Claude Code</option><option value="opencode">OpenCode</option><option value="cursor">Cursor</option></select><button class="button primary" id="nearby-preview">Review received package</button><p class="manage-note">Closing without reviewing discards the received package.</p>` : ''}<p id="form-message" role="alert"></p><button class="button" id="nearby-stop">Close and stop sharing</button>`,
+      );
+    }
+    return;
+  }
+  if (!$('#nearby-message')) {
+    if (!state.active && $('#nearby-preview')) {
+      $('#nearby-preview').disabled = true;
+      errorMessage('Sharing expired. Receive the package again to review it.');
+    }
+    return;
+  }
+  nearbyView.state = state;
+  if (!state.active) {
+    $('#nearby-message').textContent =
+      'Sharing has stopped. Close this window and reopen Send or Receive to try again.';
+    document
+      .querySelectorAll('#nearby-send,#nearby-probe,#nearby-preview,#nearby-accept,#nearby-reject')
+      .forEach((b) => (b.disabled = true));
+    return;
+  }
+  $('#nearby-identity').innerHTML =
+    `<p>Your device: <strong>${esc(state.alias)}</strong></p>${state.mode === 'receive' ? `<div class="nearby-codes"><div><small>Receiver PIN</small><strong>${esc(state.pin)}</strong></div><div><small>Security code · compare on sender</small><code>${esc(state.code)}</code></div></div><p class="manage-note">Address: ${state.addresses.map(esc).join(' or ') || 'No local IPv4 address found. Connect to your local network.'}</p>` : ''}`;
+  $('#nearby-warning').textContent = state.warning || '';
+  $('#nearby-message').textContent =
+    (state.message || 'Ready. Waiting for another device.') +
+    (state.phase === 'failed'
+      ? ' No skills were installed by this transfer. Check the receiving device and connection, then retry or stop sharing.'
+      : '');
+  const progressing = ['sending', 'transferring', 'receiving', 'waiting'].includes(state.phase);
+  $('#nearby-progress').hidden = !progressing;
+  $('#nearby-progress progress').value = state.progress;
+  $('#nearby-progress span').textContent =
+    state.phase === 'waiting' ? 'Waiting for acceptance…' : state.progress + '%';
+  $('#nearby-review').hidden = state.phase !== 'received';
+  const offer = state.phase === 'offered' ? state.incoming : null;
+  const offerKey = offer?.id || '';
+  if ($('#nearby-offer').dataset.offer !== offerKey) {
+    $('#nearby-offer').dataset.offer = offerKey;
+    $('#nearby-offer').innerHTML = offer
+      ? `<div class="nearby-offer"><h3>Incoming skill package</h3><p>${esc(offer.alias)} · ${esc(offer.ip)} · ${(offer.size / 1000000).toFixed(2)} MB</p><p>Accept only the transfer you requested. Acceptance receives a package; it does not install skills.</p><div class="manage-actions"><button class="button" id="nearby-reject">Reject</button><button class="button primary" id="nearby-accept">Accept package</button></div></div>`
+      : '';
+  }
+  if (state.mode === 'send') {
+    const select = $('#nearby-peer'),
+      previous = select.value;
+    const options =
+      '<option value="">Choose a receiving device</option>' +
+      state.peers
+        .map((p) => `<option value="${esc(p.id)}">${esc(p.alias)} · ${esc(p.ip)}</option>`)
+        .join('');
+    if (select.innerHTML !== options) {
+      select.innerHTML = options;
+      select.value = previous;
+      if (select.value !== previous) {
+        $('#nearby-confirm').checked = false;
+        $('#nearby-pin').value = '';
+      }
+    }
+    const peer = state.peers.find((p) => p.id === select.value);
+    $('#nearby-peer-code').textContent = peer?.code || 'Choose a device';
+    const busy = ['waiting', 'sending'].includes(state.phase);
+    $('#nearby-send').textContent =
+      state.phase === 'failed' ? 'Retry transfer' : 'Request transfer';
+    $('#nearby-send').disabled = busy || state.phase === 'sent';
+    select.disabled = busy;
+    $('#nearby-probe').disabled = busy;
+  }
 }
-modal.addEventListener('close',()=>{
- if(!nearbyView)return;
- nearbyView=null;clearTimeout(nearbyTimer);
- nearbyStop=api('/api/nearby-stop',{}).catch(()=>toast('Sharing connection lost; the session will expire automatically.'));
+modal.addEventListener('close', () => {
+  if (!nearbyView) return;
+  nearbyView = null;
+  clearTimeout(nearbyTimer);
+  nearbyStop = api('/api/nearby-stop', {}).catch(() =>
+    toast('Sharing connection lost; the session will expire automatically.'),
+  );
 });
-modal.addEventListener('change',e=>{if(e.target.id==='nearby-peer'){$('#nearby-confirm').checked=false;$('#nearby-pin').value='';const peer=nearbyView?.state?.peers.find(p=>p.id===e.target.value);$('#nearby-peer-code').textContent=peer?.code||'Choose a device';}});
-document.addEventListener('click',async e=>{
- const b=e.target.closest('button');if(!b||!['nearby-receive','nearby-stop','nearby-probe','nearby-send','nearby-accept','nearby-reject','nearby-preview'].includes(b.id))return;
- b.disabled=true;
- try{
-  if(b.id==='nearby-receive'){await openNearby('receive');return;}
-  if(b.id==='nearby-stop'){modal.close();return;}
-  if(!nearbyView)return;
-  const current=nearbyView;let state;
-  if(b.id==='nearby-probe'){
-   b.textContent='Finding device…';
-   state=await api('/api/nearby-probe',{address:$('#nearby-address').value});
-   if(nearbyView!==current)return;
-   paintNearby(state);
-   if(state.selectedPeer){$('#nearby-peer').value=state.selectedPeer;$('#nearby-peer').dispatchEvent(new Event('change',{bubbles:true}));$('#nearby-address').closest('details').open=false;$('#nearby-confirm').focus();}
+modal.addEventListener('change', (e) => {
+  if (e.target.id === 'nearby-peer') {
+    $('#nearby-confirm').checked = false;
+    $('#nearby-pin').value = '';
+    const peer = nearbyView?.state?.peers.find((p) => p.id === e.target.value);
+    $('#nearby-peer-code').textContent = peer?.code || 'Choose a device';
   }
-  if(b.id==='nearby-send')state=await api('/api/nearby-send',{export:current.exportId,peer:$('#nearby-peer').value,pin:$('#nearby-pin').value,confirmed:$('#nearby-confirm').checked});
-  if(b.id==='nearby-accept'||b.id==='nearby-reject')state=await api('/api/nearby-decide',{id:current.state?.incoming?.id,accept:b.id==='nearby-accept'});
-  if(b.id==='nearby-preview'){
-   const result=await api('/api/nearby-preview',{target:$('#nearby-target').value});
-   if(nearbyView!==current)return;
-   nearbyView=null;clearTimeout(nearbyTimer);previewPackage(result);return;
+});
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('button');
+  if (
+    !b ||
+    ![
+      'nearby-receive',
+      'nearby-stop',
+      'nearby-probe',
+      'nearby-send',
+      'nearby-accept',
+      'nearby-reject',
+      'nearby-preview',
+    ].includes(b.id)
+  )
+    return;
+  b.disabled = true;
+  try {
+    if (b.id === 'nearby-receive') {
+      await openNearby('receive');
+      return;
+    }
+    if (b.id === 'nearby-stop') {
+      modal.close();
+      return;
+    }
+    if (!nearbyView) return;
+    const current = nearbyView;
+    let state;
+    if (b.id === 'nearby-probe') {
+      b.textContent = 'Finding device…';
+      state = await api('/api/nearby-probe', { address: $('#nearby-address').value });
+      if (nearbyView !== current) return;
+      paintNearby(state);
+      if (state.selectedPeer) {
+        $('#nearby-peer').value = state.selectedPeer;
+        $('#nearby-peer').dispatchEvent(new Event('change', { bubbles: true }));
+        $('#nearby-address').closest('details').open = false;
+        $('#nearby-confirm').focus();
+      }
+    }
+    if (b.id === 'nearby-send')
+      state = await api('/api/nearby-send', {
+        export: current.exportId,
+        peer: $('#nearby-peer').value,
+        pin: $('#nearby-pin').value,
+        confirmed: $('#nearby-confirm').checked,
+      });
+    if (b.id === 'nearby-accept' || b.id === 'nearby-reject')
+      state = await api('/api/nearby-decide', {
+        id: current.state?.incoming?.id,
+        accept: b.id === 'nearby-accept',
+      });
+    if (b.id === 'nearby-preview') {
+      const result = await api('/api/nearby-preview', { target: $('#nearby-target').value });
+      if (nearbyView !== current) return;
+      nearbyView = null;
+      clearTimeout(nearbyTimer);
+      previewPackage(result);
+      return;
+    }
+    if (nearbyView === current && state) paintNearby(state);
+  } catch (error) {
+    errorMessage(error.message);
+  } finally {
+    if (b.id === 'nearby-probe' && b.isConnected) b.textContent = 'Find device';
+    if (b.isConnected && !['nearby-send', 'nearby-preview'].includes(b.id)) b.disabled = false;
+    else if (b.isConnected && b.id === 'nearby-preview') b.disabled = false;
   }
-  if(nearbyView===current&&state)paintNearby(state);
- }catch(error){errorMessage(error.message);}finally{if(b.id==='nearby-probe'&&b.isConnected)b.textContent='Find device';if(b.isConnected&&!['nearby-send','nearby-preview'].includes(b.id))b.disabled=false;else if(b.isConnected&&b.id==='nearby-preview')b.disabled=false;}
 });
 
-async function browseCollections(){
- const collections=await api('/api/collections');
- showDialog(dialogHeader('Skill collections')+`<p>Ready-to-install collections bundled with Skill-Desk. Preview the skills and choose what to install, or save a package to Downloads for another device.</p><label for="collection-target">Install into</label><select id="collection-target"><option value="shared">Default skill library</option><option value="codex">Codex</option><option value="claude">Claude Code</option><option value="opencode">OpenCode</option><option value="cursor">Cursor</option></select><div class="collection-list">${collections.map(c=>`<article class="collection-row"><h3>${esc(c.name)} <span class="tag">${c.count} skills</span></h3><p>${esc(c.description)}</p><p class="manage-note">Bundled snapshot · ${esc(c.commit.slice(0,7))} · MIT license</p><details><summary>Included skills and source</summary><p><a href="${esc(c.url)}" target="_blank" rel="noopener">View source on GitHub</a></p><ul>${c.skills.map(s=>`<li>${esc(s.name)} <small class="muted">${esc(s.path)}</small></li>`).join('')}</ul>${c.adaptations.length?`<p>Packaging adjustments</p><ul>${c.adaptations.map(a=>`<li>${esc(a)}</li>`).join('')}</ul>`:''}</details><div class="manage-actions"><button class="button primary" data-preview-collection="${esc(c.id)}">Preview ${esc(c.name)}</button><button class="button" data-save-collection="${esc(c.id)}">Save package to Downloads</button></div></article>`).join('')}</div><p id="form-message" role="status"></p>`);
+async function browseCollections() {
+  const collections = await api('/api/collections');
+  showDialog(
+    dialogHeader('Skill collections') +
+      `<p>Ready-to-install collections bundled with Skill-Desk. Preview the skills and choose what to install, or save a package to Downloads for another device.</p><label for="collection-target">Install into</label><select id="collection-target"><option value="shared">Default skill library</option><option value="codex">Codex</option><option value="claude">Claude Code</option><option value="opencode">OpenCode</option><option value="cursor">Cursor</option></select><div class="collection-list">${collections.map((c) => `<article class="collection-row"><h3>${esc(c.name)} <span class="tag">${c.count} skills</span></h3><p>${esc(c.description)}</p><p class="manage-note">Bundled snapshot · ${esc(c.commit.slice(0, 7))} · MIT license</p><details><summary>Included skills and source</summary><p><a href="${esc(c.url)}" target="_blank" rel="noopener">View source on GitHub</a></p><ul>${c.skills.map((s) => `<li>${esc(s.name)} <small class="muted">${esc(s.path)}</small></li>`).join('')}</ul>${c.adaptations.length ? `<p>Packaging adjustments</p><ul>${c.adaptations.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}</details><div class="manage-actions"><button class="button primary" data-preview-collection="${esc(c.id)}">Preview ${esc(c.name)}</button><button class="button" data-save-collection="${esc(c.id)}">Save package to Downloads</button></div></article>`).join('')}</div><p id="form-message" role="status"></p>`,
+  );
 }
-document.addEventListener('click',async e=>{
- const b=e.target.closest('button');if(!b)return;
- if(!['browse-collections'].includes(b.id)&&!b.dataset.previewCollection&&!b.dataset.saveCollection)return;
- try{
-  b.disabled=true;
-  if(b.id==='browse-collections')await browseCollections();
-  else if(b.dataset.previewCollection){const target=$('#collection-target').value;previewPackage(await api('/api/collection-preview',{collection:b.dataset.previewCollection,target}));}
-  else{const result=await api('/api/collection-save',{collection:b.dataset.saveCollection});$('#form-message').textContent='Saved to '+result.path;}
- }catch(error){errorMessage(error.message);}finally{if(b.isConnected)b.disabled=false;}
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (
+    !['browse-collections'].includes(b.id) &&
+    !b.dataset.previewCollection &&
+    !b.dataset.saveCollection
+  )
+    return;
+  try {
+    b.disabled = true;
+    if (b.id === 'browse-collections') await browseCollections();
+    else if (b.dataset.previewCollection) {
+      const target = $('#collection-target').value;
+      previewPackage(
+        await api('/api/collection-preview', { collection: b.dataset.previewCollection, target }),
+      );
+    } else {
+      const result = await api('/api/collection-save', { collection: b.dataset.saveCollection });
+      $('#form-message').textContent = 'Saved to ' + result.path;
+    }
+  } catch (error) {
+    errorMessage(error.message);
+  } finally {
+    if (b.isConnected) b.disabled = false;
+  }
 });
 
-document.addEventListener('click',async e=>{if(e.target.id!=='save-author-model')return;const button=e.target;button.disabled=true;try{await api('/api/provider',{provider:providerData.selected,model:$('#author-model').value.trim()});await loadProviders();toast('Authoring model saved');}catch(error){toast(error.message);}finally{if(button.isConnected)button.disabled=false;}});
+document.addEventListener('click', async (e) => {
+  if (e.target.id !== 'save-author-model') return;
+  const button = e.target;
+  button.disabled = true;
+  try {
+    await api('/api/provider', {
+      provider: providerData.selected,
+      model: $('#author-model').value.trim(),
+    });
+    await loadProviders();
+    toast('Authoring model saved');
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    if (button.isConnected) button.disabled = false;
+  }
+});

@@ -21,7 +21,7 @@ import time
 from urllib.parse import parse_qs, urlsplit, urlencode
 
 import psutil
-from skill_packages import MAX_BYTES
+from .skill_packages import MAX_BYTES
 
 GROUP, DISCOVERY_PORT = '224.0.0.167', 53317
 PREFIX = '/api/localsend/v2/'

@@ -2,10 +2,10 @@
 import gc,json,os,sys,tempfile,time
 from pathlib import Path
 import psutil
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from management import Manager
-from library_tools import LibraryTools
-from usage_history import scan
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
+from skilldesk.management import Manager
+from skilldesk.library_tools import LibraryTools
+from skilldesk.usage_history import scan
 
 seconds=int(sys.argv[1]) if len(sys.argv)>1 else 300
 output=Path(sys.argv[2]) if len(sys.argv)>2 else Path('/tmp/skilldesk-maintenance-stress.json')

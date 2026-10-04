@@ -6,10 +6,10 @@ from pathlib import Path
 import shutil
 import time
 import uuid
-from durable_state import StateFile,atomic_json,digest
-from experience import tree_digest
-from library_tools import LibraryTools,quality
-from workspace_backup import WorkspaceBackup
+from .durable_state import StateFile,atomic_json,digest
+from .experience import tree_digest
+from .library_tools import LibraryTools,quality
+from .workspace_backup import WorkspaceBackup
 
 
 class Workbench:
@@ -114,7 +114,7 @@ class Workbench:
         if op=='draft-export':return manager.export_draft(data)
         if op=='draft-template':return manager.save_draft(dict(data,template=True))
         if op=='draft-fork':
-            from agents import personal_root,LABELS
+            from .agents import personal_root,LABELS
             target=data.get('target')
             if target not in LABELS:raise ValueError('Choose a destination agent.')
             draft,folder=manager.draft_candidate(data)
@@ -124,7 +124,7 @@ class Workbench:
             if not isinstance(ids,list) or not 1<=len(ids)<=500 or len(set(ids))!=len(ids):raise ValueError('Select 1 to 500 distinct skills.')
             entries=[self.entry(key) for key in ids]
             if action=='export':
-                from skill_packages import export_package
+                from .skill_packages import export_package
                 accepted=[];results=[]
                 for entry in entries:
                     try:
@@ -140,7 +140,7 @@ class Workbench:
                         self.library.annotate(entry['folder'],dict(favorite=data.get('favorite',True)))
                         self.favorite([entry['id']],data.get('favorite',True))
                     elif action=='archive':
-                        from management import fingerprint
+                        from .management import fingerprint
                         folder=Path(entry['folder'])
                         if folder.parent!=manager.root:raise ValueError('Batch archive is available only in the managed library.')
                         expected=data.get('fingerprints',{}).get(entry['id'])
@@ -151,13 +151,13 @@ class Workbench:
                 except Exception as error:results.append(dict(id=entry['id'],status='failed',message=str(error)))
             self.catalog.refresh(generate=False);return dict(results=results)
         if op=='batch-review':
-            from management import fingerprint
+            from .management import fingerprint
             return dict(items=[dict(self.entry(key),fingerprint=fingerprint(Path(self.entry(key)['folder']))) for key in data.get('ids',[])[:500]])
         if op=='collection-quality':
             entries=[e for e in self.entries() if data.get('name') in self.library.data['skills'].get(e['folder'],{}).get('collections',[])]
             return dict(collection=data.get('name'),reports=[dict(name=e['name'],location=e['folder'],**quality(e['folder'],e['harnesses'])) for e in entries])
         if op=='collection-preview':
-            from agents import personal_root,LABELS
+            from .agents import personal_root,LABELS
             target=data.get('target')
             if target not in LABELS:raise ValueError('Choose a supported agent.')
             entries=[e for e in self.entries() if data.get('name') in self.library.data['skills'].get(e['folder'],{}).get('collections',[])]
@@ -183,16 +183,16 @@ class Workbench:
             if row:shutil.rmtree(row['base'])
             return dict(discarded=bool(row))
         if op=='project-reconnect-preview':
-            from projects import project_destination
-            from agents import LABELS
+            from .projects import project_destination
+            from .agents import LABELS
             project=self.projects.get(data.get('id'));path=Path(str(data.get('path',''))).expanduser().resolve()
             for agent in LABELS:project_destination(path,agent)
             if any(p['path']==str(path) and p['id']!=project['id'] for p in self.projects.listing()):raise ValueError('This repository is already registered.')
             token=uuid.uuid4().hex;self.moves[token]=dict(kind='project',project=project,path=str(path))
             return dict(id=token,old=project['path'],new=str(path),name=project['name'])
         if op=='project-reconnect':
-            from projects import project_destination
-            from agents import LABELS
+            from .projects import project_destination
+            from .agents import LABELS
             row=self.moves.get(data.get('id'))
             if not row or row['kind']!='project':raise ValueError('Reconnect preview expired.')
             for agent in LABELS:project_destination(row['path'],agent)

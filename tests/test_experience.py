@@ -2,11 +2,11 @@ from pathlib import Path
 import json,sys,tempfile,time,unittest
 from types import SimpleNamespace
 from unittest.mock import patch
-sys.path.insert(0,str(Path(__file__).resolve().parent.parent/'scripts'))
-from experience import Experience,feedback_preview,tree_digest,VERSION
-from management import Manager
-from projects import Projects
-from readiness import check_agent
+sys.path.insert(0,str(Path(__file__).resolve().parent.parent/'src'))
+from skilldesk.experience import Experience,feedback_preview,tree_digest,VERSION
+from skilldesk.management import Manager
+from skilldesk.projects import Projects
+from skilldesk.readiness import check_agent
 
 class ExperienceTests(unittest.TestCase):
  def setUp(self):
@@ -66,11 +66,11 @@ class ReadinessTests(unittest.TestCase):
    if '--help' in cmd:return SimpleNamespace(returncode=0,stdout='--ignore-user-config --ephemeral --output-schema --setting-sources --strict-mcp-config --disable-slash-commands --json-schema',stderr='')
    if name=='codex':return SimpleNamespace(returncode=0 if authenticated else 1,stdout='',stderr='Logged in using ChatGPT' if authenticated else 'Not logged in')
    return SimpleNamespace(returncode=0 if authenticated else 1,stdout=json.dumps({'loggedIn':authenticated,'email':'private@example.com'}),stderr='')
-  with patch('readiness.executable',return_value='/fixture/'+name),patch('readiness.subprocess.run',side_effect=run):result=check_agent(name)
+  with patch('skilldesk.readiness.executable',return_value='/fixture/'+name),patch('skilldesk.readiness.subprocess.run',side_effect=run):result=check_agent(name)
   self.assertNotIn('private@example.com',json.dumps(result));self.assertFalse(any('--print' in c or '-p' in c for c in commands));return result
  def test_saved_auth_without_inference(self):
   for name in ('codex','claude'):self.assertEqual(self.run_fixture(name)['status'],'ready');self.assertEqual(self.run_fixture(name,False)['status'],'sign-in')
  def test_missing_and_failure_are_actionable(self):
-  with patch('readiness.executable',return_value=None):self.assertEqual(check_agent('claude')['status'],'missing')
-  with patch('readiness.executable',return_value='/fixture/codex'),patch('readiness.subprocess.run',side_effect=OSError('PRIVATE DETAIL')):
+  with patch('skilldesk.readiness.executable',return_value=None):self.assertEqual(check_agent('claude')['status'],'missing')
+  with patch('skilldesk.readiness.executable',return_value='/fixture/codex'),patch('skilldesk.readiness.subprocess.run',side_effect=OSError('PRIVATE DETAIL')):
    result=check_agent('codex');self.assertEqual(result['status'],'unknown');self.assertNotIn('PRIVATE',json.dumps(result))

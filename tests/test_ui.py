@@ -7,8 +7,8 @@ import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT/'scripts'))
-from skill_desk import live_html
+sys.path.insert(0, str(ROOT/'src'))
+from skilldesk.skill_desk import live_html
 
 
 class ScriptParser(HTMLParser):
@@ -39,7 +39,7 @@ class ScriptParser(HTMLParser):
 class UIContractTests(unittest.TestCase):
     def test_completed_job_without_result_shows_status_without_rendering_or_retry(self):
         source = (ROOT/'web/manage.js').read_text()
-        functions = source[source.index('let jobState=null'):source.index('async function startJob')]
+        functions = source[source.index('let jobState = null'):source.index('async function startJob')]
         program = r'''
 const assert=require('node:assert/strict');
 let activeJob=null,activeDraft=null,recommendationResult=null,lastToolResult=null;
@@ -78,9 +78,9 @@ async function api(){apiCalls++;return response;}
 
     def test_live_copy_uses_provider_and_real_name(self):
         # Exercise the actual served template, which replaces the offline overview.
-        page = live_html().decode()
+        page = (ROOT/'web/library.js').read_text()
         helpers = page[page.index('function skillName'):page.index('function overview')]
-        copy = page[page.index('async function copy'):page.index("document.addEventListener('click',async e=>")]
+        copy = page[page.index('async function copy'):page.index("document.addEventListener('click', async (e) =>")]
         program = helpers + copy + r'''
 const assert=require('node:assert/strict');
 let harnessFilter='all',copied='';
@@ -104,7 +104,7 @@ function toast(){}
         subprocess.run(['node', '-e', program], check=True, timeout=15, capture_output=True)
 
     def test_served_and_portable_scripts_parse(self):
-        pages = [live_html().decode(), (ROOT/'marketing/index.html').read_text(encoding='utf-8'), (ROOT/'desktop/updater.html').read_text(encoding='utf-8')]
+        pages = [live_html().decode(), (ROOT/'desktop/updater.html').read_text(encoding='utf-8')]
         for page in pages:
             for attrs, script in ScriptParser(page).scripts:
                 if attrs.get('type') == 'application/json' or 'src' in attrs: continue
@@ -123,10 +123,18 @@ function toast(){}
             self.assertGreaterEqual(height,600)
         self.assertIn('/onboarding.js',live_html().decode())
 
+    def test_request_configuration_escapes_html_and_precedes_app_scripts(self):
+        value = '</script><script>alert(1)</script>'
+        page = live_html(token=value, saved=[value]).decode()
+        self.assertNotIn(value, page)
+        self.assertIn('\\u003c/script>', page)
+        self.assertLess(page.index('window.skillDeskToken='), page.index('src="/library.js"'))
+        self.assertIn('window.skillDeskSaved=', page)
+
     def test_theme_is_injected_before_first_paint(self):
         page=live_html(saved=['example'], theme='light').decode()
-        self.assertLess(page.index('window.skillDeskTheme="light"'),page.index("const key='skill-desk-theme'"))
-        self.assertIn('let saved=["example"]',page)
+        self.assertLess(page.index('window.skillDeskTheme="light"'),page.index("const key = 'skill-desk-theme'"))
+        self.assertIn('window.skillDeskSaved=["example"]',page)
         self.assertIn('window.skillDeskTheme="dark"',live_html(theme='<script>').decode())
 
 
@@ -139,11 +147,11 @@ class PublicContentTests(unittest.TestCase):
             ({'type': 'application/json'}, '{"ok":true}'),
         ])
 
-    def test_public_root_is_marketing_and_desktop_has_no_seed_catalog(self):
-        marketing = (ROOT/'marketing/index.html').read_text(encoding='utf-8')
-        self.assertEqual((ROOT/'index.html').read_text(encoding='utf-8'), marketing)
-        self.assertNotIn('/api/skills', marketing)
+    def test_app_has_no_website_and_desktop_has_no_seed_catalog(self):
+        self.assertFalse((ROOT/'marketing').exists())
+        self.assertFalse((ROOT/'index.html').exists())
         template = (ROOT/'web/app.html').read_text(encoding='utf-8')
         catalog = next(script for attrs, script in ScriptParser(template).scripts if attrs.get('id') == 'skill-data')
         self.assertEqual(json.loads(catalog), [])
-        self.assertIn('/api/skills', live_html().decode())
+        self.assertIn('/sync.js', live_html().decode())
+        self.assertIn('/api/skills', (ROOT/'web/sync.js').read_text())
