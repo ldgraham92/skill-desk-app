@@ -7,11 +7,11 @@ from pathlib import Path
 import subprocess
 
 ROOT=Path(__file__).resolve().parent.parent
-REPO='ldgraham92/skill-desk'
+REPO='ldgraham92/skill-desk-app'
 def gh(*args, data=None):
     command=['gh',*args]
     if data is not None: command+=['--input','-']
-    return subprocess.check_output(command,input=json.dumps(data).encode() if data is not None else None)
+    return subprocess.check_output(command,stderr=subprocess.PIPE,input=json.dumps(data).encode() if data is not None else None)
 
 def manifest(folder, tag, notes):
     platforms={}
@@ -28,10 +28,19 @@ def publish_feed(feed):
     ref=f'repos/{REPO}/git/ref/heads/updates'
     try:
         previous=json.loads(gh('api',ref))['object']['sha']
-        current=json.loads(gh('api',f'repos/{REPO}/contents/latest.json?ref=updates'))
-        old=json.loads(base64.b64decode(current['content']))
-        if tuple(map(int,old['version'].split('.')))>=tuple(map(int,feed['version'].split('.'))): return
-    except subprocess.CalledProcessError: previous=None
+    except subprocess.CalledProcessError as error:
+        if b'404' not in (error.output or b'') and b'404' not in (error.stderr or b''):
+            raise
+        previous=None
+    if previous:
+        try:
+            current=json.loads(gh('api',f'repos/{REPO}/contents/latest.json?ref=updates'))
+            old=json.loads(base64.b64decode(current['content']))
+            if tuple(map(int,old['version'].split('.')))>=tuple(map(int,feed['version'].split('.'))): return
+        except subprocess.CalledProcessError as error:
+            # A migrated updates branch exists before its first clean signed feed.
+            if b'404' not in (error.output or b'') and b'404' not in (error.stderr or b''):
+                raise
     tree=json.loads(gh('api',f'repos/{REPO}/git/trees','--method','POST',data={'tree':[{'path':'latest.json','mode':'100644','type':'blob','content':json.dumps(feed,indent=2)+'\n'}]}))['sha']
     commit=json.loads(gh('api',f'repos/{REPO}/git/commits','--method','POST',data={'message':'Publish update feed '+feed['version'],'tree':tree,'parents':[previous] if previous else []}))['sha']
     if previous: gh('api',f'repos/{REPO}/git/refs/heads/updates','--method','PATCH',data={'sha':commit,'force':False})

@@ -4,7 +4,7 @@ Skill-Desk packages its local service and web interface in a Tauri desktop windo
 
 ## Installation
 
-Windows: download the `Skill-Desk_*_x64-setup.exe` installer from [GitHub Releases](https://github.com/ldgraham92/skill-desk/releases). Install for the current user. The executable, taskbar, Start menu entry, desktop shortcut and tray use the same Skill-Desk logo. WebView2 is handled by the Tauri installer when needed. Windows ARM64 is not yet built; the initial Windows target is x64.
+Windows: download the `Skill-Desk_*_x64-setup.exe` installer from [GitHub Releases](https://github.com/ldgraham92/skill-desk-app/releases). Install for the current user. The executable, taskbar, Start menu entry, desktop shortcut and tray use the same Skill-Desk logo. WebView2 is handled by the Tauri installer when needed. Windows ARM64 is not yet built; the initial Windows target is x64.
 
 macOS: open the DMG and drag Skill-Desk into Applications. The initial local build is Apple Silicon. CI also builds using its macOS runner architecture.
 

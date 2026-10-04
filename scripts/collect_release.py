@@ -22,5 +22,5 @@ for signature in bundle.glob(pattern):
     shutil.copy2(artifact,output/name)
     shutil.copy2(signature,output/(name+'.sig'))
     target={'win32':'windows','darwin':'darwin','linux':'linux'}[sys.platform]+'-'+arch
-    (output/f'updater-{target}.json').write_text(json.dumps({target:{'signature':signature.read_text().strip(),'url':f'https://github.com/ldgraham92/skill-desk/releases/download/v{version}/{name}'}}))
+    (output/f'updater-{target}.json').write_text(json.dumps({target:{'signature':signature.read_text().strip(),'url':f'https://github.com/ldgraham92/skill-desk-app/releases/download/v{version}/{name}'}}))
 print('Collected installer and available updater artifacts.')

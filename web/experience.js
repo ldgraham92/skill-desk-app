@@ -209,14 +209,14 @@ document.addEventListener('click', async (e) => {
       const title = $('#review-feedback-title').value,
         body = $('#review-feedback-body').value;
       const url =
-        'https://github.com/ldgraham92/skill-desk/issues/new?' +
+        'https://github.com/ldgraham92/skill-desk-app/issues/new?' +
         new URLSearchParams({ title, body });
       if (url.length > 7500) {
         errorMessage(
           'This report is too long for a draft link. Copy it, then paste it into a new GitHub issue.',
         );
         const a = document.createElement('a');
-        a.href = 'https://github.com/ldgraham92/skill-desk/issues/new';
+        a.href = 'https://github.com/ldgraham92/skill-desk-app/issues/new';
         a.target = '_blank';
         a.rel = 'noopener';
         a.textContent = 'Open a blank issue';

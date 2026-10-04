@@ -31,7 +31,7 @@ Building downloads dependencies from their package registries. Your completed in
 ## 2. Get the source
 
 ```sh
-git clone https://github.com/ldgraham92/skill-desk.git
+git clone https://github.com/ldgraham92/skill-desk-app.git
 cd skill-desk
 ```
 
@@ -131,7 +131,7 @@ For a separately distributed fork, configure your own application identity, upda
 | Shared UI assets are stale | Run `scripts/sync_ui_assets.py`, then rerun verification and rebuild the service. |
 | Linux reports missing native libraries | Follow Tauri's prerequisites for your exact distribution and check the current workflow's packaging dependencies. |
 
-If a build fails, [open an issue](https://github.com/ldgraham92/skill-desk/issues/new/choose) with your OS, architecture, tool versions, source commit and the relevant error. Remove credentials and private paths from logs before sharing.
+If a build fails, [open an issue](https://github.com/ldgraham92/skill-desk-app/issues/new/choose) with your OS, architecture, tool versions, source commit and the relevant error. Remove credentials and private paths from logs before sharing.
 
 ---
 

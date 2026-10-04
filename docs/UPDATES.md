@@ -8,12 +8,18 @@ Windows uses the per-user NSIS updater. macOS uses an application update archive
 
 The app replaces its own binaries; skill directories, preferences, and CLI credentials are not installation targets. Cross-harness skill copies remain independent of app updates.
 
+## Legacy v0.4.0 installations
+
+The old public repository is being retained privately. Existing v0.4.0 clients still point to its updater feed and will need a manual install of the next verified clean release. They can continue using their installed app. The new repository's `updates` branch intentionally has no `latest.json` until a clean, signed release is approved; it must never advertise the old website-containing installers.
+
+The existing public updater key is retained. Its private key is not copied, logged, or configured by this migration. Release publication requires the owner to configure signing securely and approve the exact new version and artifacts. `RELEASE_PUBLICATION_ENABLED` is unset by default, so source tags alone cannot publish a release.
+
 ## Publish an update
 
 1. Increment the version in package.json, package-lock.json, Cargo.toml, Cargo.lock, and tauri.conf.json.
 2. Add docs/releases/vVERSION.md and update CHANGELOG.md.
 3. Push the code and matching annotated vVERSION tag.
-4. GitHub Actions tests and builds all platforms, signs updater bundles, publishes an immutable release, and then advances latest.json on the updates branch.
+4. After signing setup and exact artifact approval, enable `RELEASE_PUBLICATION_ENABLED` for the approved release. GitHub Actions tests and builds all platforms, signs updater bundles, publishes an immutable release, and then advances latest.json on the updates branch.
 
 Normal main pushes run validation. Only version tags publish updates. Users receive each published version through the updater; they do not need to download a new installer. Versions before the updater was introduced require one manual upgrade.
 

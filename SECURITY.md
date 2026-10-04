@@ -1,6 +1,6 @@
 # Security policy
 
-Report vulnerabilities through [GitHub private vulnerability reporting](https://github.com/ldgraham92/skill-desk/security/advisories/new). Please do not post exploit details or credentials in a public issue.
+Report vulnerabilities through [GitHub private vulnerability reporting](https://github.com/ldgraham92/skill-desk-app/security/advisories/new). Please do not post exploit details or credentials in a public issue.
 
 Include the affected version, operating system, reproduction steps and expected impact. Use a temporary skill library. Remove account tokens, private prompts and personal paths from attachments. Maintainers will investigate as availability permits; this volunteer project does not promise a response SLA.
 

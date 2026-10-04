@@ -1,4 +1,5 @@
 """Install 0.3.0 and upgrade it inside a disposable Windows CI runner."""
+import argparse
 import hashlib
 import json
 import os
@@ -63,6 +64,9 @@ def smoke_helper(app, root, state, version):
 def main():
     if sys.platform != 'win32' or os.environ.get('GITHUB_ACTIONS') != 'true':
         raise RuntimeError('Run only inside a disposable Windows GitHub Actions runner.')
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--baseline-current', action='store_true', help='Verify a clean installer reinstall without downloading a legacy release.')
+    args = parser.parse_args()
     version = json.loads((ROOT/'package.json').read_text(encoding='utf-8'))['version']
     installers = list((ROOT/'src-tauri/target/release/bundle/nsis').glob('*.exe'))
     assert len(installers) == 1, 'Expected one candidate NSIS installer'
@@ -74,12 +78,16 @@ def main():
         prefs = state/'preferences.json'; prefs.write_text(json.dumps(dict(saved=['upgrade-example'], theme='light', walkthrough=1, whatsNew='0.3.0')))
         preserved = {p: p.read_bytes() for p in (instruction, prefs)}
         old = base/'old-setup.exe'
-        with urllib.request.urlopen(OLD_URL, timeout=90) as response:
-            old.write_bytes(response.read(30_000_001))
-        assert hashlib.sha256(old.read_bytes()).hexdigest() == OLD_SHA256
+        baseline_version = version if args.baseline_current else '0.3.0'
+        if args.baseline_current:
+            old.write_bytes(installers[0].read_bytes())
+        else:
+            with urllib.request.urlopen(OLD_URL, timeout=90) as response:
+                old.write_bytes(response.read(30_000_001))
+            assert hashlib.sha256(old.read_bytes()).hexdigest() == OLD_SHA256
         try:
             subprocess.run([str(old), '/S', '/D='+str(app)], check=True, timeout=180)
-            smoke_helper(app, root, state, '0.3.0')
+            smoke_helper(app, root, state, baseline_version)
             old_hash = hashlib.sha256((app/'Skill-Desk.exe').read_bytes()).hexdigest()
             # Use the updater plugin's NSIS update mode, preserving app data and shortcuts.
             subprocess.run([str(installers[0]), '/S', '/UPDATE', '/D='+str(app)], check=True, timeout=180)
@@ -108,7 +116,8 @@ def main():
                 expectedHash=expected_hash, installedHash=actual_hash))
             smoke_helper(app, root, state, version)
             assert all(p.read_bytes() == value for p, value in preserved.items())
-            print(json.dumps(dict(fromVersion='0.3.0', toVersion=version,
+            print(json.dumps(dict(fromVersion=baseline_version, toVersion=version,
+                                  baselineCurrent=args.baseline_current,
                                   nativeInstallerUpgrade=True, candidateBytesMatch=True,
                                   savedStatePreserved=True, installedHelperVerified=True)))
         finally:

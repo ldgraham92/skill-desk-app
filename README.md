@@ -1,11 +1,21 @@
 <p align="center"><img src="assets/skilldesk.png" width="96" alt="Skill-Desk logo"></p>
 <h1 align="center">Skill-Desk</h1>
 <p align="center">Discover, create and manage the skills behind your AI work.</p>
-<p align="center"><a href="https://github.com/ldgraham92/skill-desk/actions/workflows/desktop.yml"><img src="https://github.com/ldgraham92/skill-desk/actions/workflows/desktop.yml/badge.svg" alt="Desktop builds"></a> <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a></p>
+<p align="center"><a href="https://github.com/ldgraham92/skill-desk-app/actions/workflows/desktop.yml"><img src="https://github.com/ldgraham92/skill-desk-app/actions/workflows/desktop.yml/badge.svg" alt="Desktop builds"></a> <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a></p>
 
-Skill-Desk is a free, open-source desktop manager for personal AI skills. It keeps your skill files on your machine and uses your installed, signed-in Codex, Claude Code, OpenCode, or Cursor CLI when you ask it to author a skill. Reference guidance is generated for new or changed skills and cached locally.
+Skill-Desk is an agent-built, free, open-source desktop manager for personal AI skills. It keeps your skill files on your machine and uses your installed, signed-in Codex, Claude Code, OpenCode, or Cursor CLI when you ask it to author a skill. Reference guidance is generated for new or changed skills and cached locally.
 
-**[Download a desktop release](https://github.com/ldgraham92/skill-desk/releases)** · **[Report a bug](https://github.com/ldgraham92/skill-desk/issues/new/choose)**
+**[Download a desktop release](https://github.com/ldgraham92/skill-desk-app/releases)** · **[Report a bug](https://github.com/ldgraham92/skill-desk-app/issues/new/choose)**
+
+## Repository migration and downloads
+
+This is the public application repository. Its app development history is retained, with the standalone website files removed from every published branch and tag. The website is maintained in a separate private repository.
+
+**Clean installers have not been published here yet.** Build from source using the guide below, or wait for a verified release on this repository's Releases page. Historical tags preserve sanitized source history; they do not claim that the old uploaded installers were built from this adjusted history.
+
+Existing v0.4.0 installations can keep running. Their legacy updater feed will become unavailable when the old repository is made private. To receive future updates, manually download and install the next verified release from this repository. No legacy installers are republished here because they include the old website files. Your app identity and skill/settings locations remain unchanged; native migration validation is a release gate.
+
+This repository showcases development carried out through AI agents, with the project owner directing the work and approving consequential changes.
 
 ## What it does
 
@@ -31,7 +41,7 @@ Version 0.4 adds reviewed upstream updates, supporting-file editing and revision
 
 ## Install
 
-Choose the appropriate asset from [Releases](https://github.com/ldgraham92/skill-desk/releases):
+Choose the appropriate asset from [Releases](https://github.com/ldgraham92/skill-desk-app/releases):
 
 | Platform | Installer |
 | --- | --- |

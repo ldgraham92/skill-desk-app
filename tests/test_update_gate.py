@@ -23,6 +23,29 @@ class UpdateTests(unittest.TestCase):
             folder=Path(tmp)
             with self.assertRaises(RuntimeError):manifest(folder,'v0.2.0','notes')
             for target in ['windows-x86_64','darwin-aarch64','linux-x86_64']:
-                (folder/f'updater-{target}.json').write_text(json.dumps({target:{'signature':'test-signature','url':'https://github.com/ldgraham92/skill-desk/releases/download/v0.2.0/artifact'}}))
+                (folder/f'updater-{target}.json').write_text(json.dumps({target:{'signature':'test-signature','url':'https://github.com/ldgraham92/skill-desk-app/releases/download/v0.2.0/artifact'}}))
             self.assertEqual(len(manifest(folder,'v0.2.0','notes')['platforms']),3)
             with self.assertRaises(RuntimeError):manifest(folder,'v0.2.1','notes')
+
+class FeedMigrationTests(unittest.TestCase):
+    def test_existing_updates_branch_without_feed_keeps_ancestry(self):
+        from unittest.mock import patch
+        import subprocess
+        from publish_release import publish_feed
+        missing = subprocess.CalledProcessError(1, ['gh'], stderr=b'HTTP 404')
+        replies = [b'{"object":{"sha":"existing"}}', missing, b'{"sha":"tree"}', b'{"sha":"commit"}', b'{}']
+        with patch('publish_release.gh', side_effect=replies) as api:
+            publish_feed({'version': '0.4.1', 'platforms': {}})
+        self.assertEqual(api.call_args_list[3].kwargs['data']['parents'], ['existing'])
+        self.assertEqual(api.call_args_list[4].args[3], 'PATCH')
+        self.assertFalse(api.call_args_list[4].kwargs['data']['force'])
+
+    def test_feed_auth_failure_does_not_create_refs(self):
+        from unittest.mock import patch
+        import subprocess
+        from publish_release import publish_feed
+        denied = subprocess.CalledProcessError(1, ['gh'], stderr=b'HTTP 403')
+        with patch('publish_release.gh', side_effect=[b'{"object":{"sha":"existing"}}', denied]) as api:
+            with self.assertRaises(subprocess.CalledProcessError):
+                publish_feed({'version': '0.4.1', 'platforms': {}})
+        self.assertEqual(api.call_count, 2)
