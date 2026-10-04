@@ -82,14 +82,14 @@ jobs:
         run: xvfb-run -a python tests/run_native_smoke.py "$RUNNER_TEMP/skilldesk-native-evidence"
       - name: Preserve Linux native evidence
         if: always() && runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-native-evidence
           path: ${{ runner.temp }}/skilldesk-native-evidence/
           if-no-files-found: warn
       - name: Collect installers
         run: python scripts/collect_release.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: installer-${{ matrix.platform }}
           if-no-files-found: error
